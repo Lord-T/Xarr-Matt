@@ -1,0 +1,131 @@
+:root {
+  /* Brand Colors */
+  --primary: #F97316;
+  /* Orange Vibrant */
+  --primary-foreground: #FFFFFF;
+  --primary-hover: #EA580C;
+
+  --secondary: #1E40AF;
+  /* Deep Blue */
+  --secondary-foreground: #FFFFFF;
+  --secondary-hover: #1E3A8A;
+
+  /* UI Colors */
+  --background: #F8FAFC;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #F97316;
+
+  /* Text Colors */
+  --foreground: #0F172A;
+  --muted: #64748B;
+  --muted-foreground: #94A3B8;
+
+  /* Feedback */
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --success: #22C55E;
+  --warning: #EAB308;
+
+  /* Radius */
+  --radius: 0.5rem;
+}
+
+[data-theme='dark'] {
+  --background: #020617;
+  --surface: #0F172A;
+  --border: #1E293B;
+  --input: #1E293B;
+
+  --foreground: #F8FAFC;
+  --muted: #94A3B8;
+  --muted-foreground: #64748B;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  /* Fallback until Inter is loaded */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Utilities */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: none;
+  font-size: 0.875rem;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.btn-secondary:hover {
+  background-color: var(--secondary-hover);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+}
+
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
