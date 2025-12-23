@@ -365,7 +365,7 @@ export default function BecomeProviderPage() {
                                     '📍 Ma position actuelle'}
                         </button>
 
-                        {formData.latitude && (
+                        {formData.latitude && formData.longitude && (
                             <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--muted)', textAlign: 'center' }}>
                                 Lat: {formData.latitude.toFixed(6)}, Lng: {formData.longitude.toFixed(6)}
                             </p>
