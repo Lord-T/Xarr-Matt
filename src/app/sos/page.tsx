@@ -8,6 +8,7 @@ export default function SOSPage() {
     const router = useRouter();
     const [showOtherInput, setShowOtherInput] = useState(false);
     const [otherMessage, setOtherMessage] = useState('');
+    const [status, setStatus] = useState('idle');
 
     const handleSOS = (type: string) => {
         if (type === 'autre' && !showOtherInput) {
