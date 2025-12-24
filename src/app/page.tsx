@@ -16,6 +16,14 @@ const INITIAL_ADS: FeedItemProps[] = [];
 export default function Home() {
   const [ads, setAds] = useState<FeedItemProps[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Fetch Current User
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentUserId(user.id);
+    });
+  }, []);
 
   // Fetch Real Posts from Supabase
   useEffect(() => {
@@ -41,7 +49,9 @@ export default function Home() {
             lat: 14.7167, // Default Dakar
             lng: -17.4677, // Default Dakar
             status: 'available',
-            phoneNumber: post.contact_phone
+            phoneNumber: post.contact_phone,
+            user_id: post.user_id, // Added user_id
+            audioUrl: post.audio_url
           }));
           setAds(formattedAds);
         }
@@ -65,6 +75,25 @@ export default function Home() {
   // Business Logic: Provider Wallet Balance (Simulated)
   const [providerBalance, setProviderBalance] = useState(2500); // Initial balance
   const COMMISSION_FEE = 500; // 500 FCFA per accepted mission
+
+  const handleEditPost = async (id: number, currentPrice: number, currentDesc: string) => {
+    const newPrice = prompt("Modifier le budget (FCFA) :", currentPrice.toString());
+    if (newPrice === null) return;
+
+    const priceVal = parseFloat(newPrice);
+    if (isNaN(priceVal)) return alert("Prix invalide");
+
+    // Optimistic UI Update
+    setAds(prev => prev.map(ad => ad.id === id ? { ...ad, price: `${priceVal} FCFA` } : ad));
+
+    const { error } = await supabase.from('posts').update({ price: priceVal }).eq('id', id);
+    if (error) {
+      console.error(error);
+      alert("Erreur lors de la mise à jour");
+    } else {
+      // Success
+    }
+  };
 
   const handleAccept = (id: number) => {
     // 1. Check Balance
@@ -195,8 +224,10 @@ export default function Home() {
             <FeedItem
               key={ad.id}
               item={ad}
+              currentUserId={currentUserId || undefined}
               onAccept={handleAccept}
               onConfirmArrival={handleConfirmArrival}
+              onEdit={handleEditPost}
             />
           ))
         ) : (

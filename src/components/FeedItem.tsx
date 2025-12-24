@@ -17,17 +17,21 @@ export interface FeedItemProps {
     lat: number;
     lng: number;
     status: 'available' | 'accepted';
+    user_id: string; // ID of the poster
     phoneNumber?: string; // New field for contact
     audioUrl?: string; // Voice note URL
 }
 
 interface FeedItemComponentProps {
     item: FeedItemProps;
+    currentUserId?: string; // ID of the logged-in user
     onAccept: (id: number) => void;
     onConfirmArrival: (id: number) => void;
+    onEdit?: (id: number, currentPrice: number, currentDesc: string) => void; // Callback for editing
 }
 
-export function FeedItem({ item, onAccept, onConfirmArrival }: FeedItemComponentProps) {
+export function FeedItem({ item, currentUserId, onAccept, onConfirmArrival, onEdit }: FeedItemComponentProps) {
+    const isAuthor = currentUserId === item.user_id;
 
     const handleNavigation = () => {
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`, '_blank');
@@ -60,7 +64,7 @@ export function FeedItem({ item, onAccept, onConfirmArrival }: FeedItemComponent
                     <div>
                         <div style={{ fontWeight: 600 }}>
                             <a href="/profile/view" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
-                                {item.author}
+                                {item.author} {isAuthor && <span style={{ fontSize: '0.7rem', color: '#EF4444', marginLeft: '4px' }}>(Moi)</span>}
                             </a>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -96,6 +100,14 @@ export function FeedItem({ item, onAccept, onConfirmArrival }: FeedItemComponent
                 <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
                     Budget: {item.price}
                 </div>
+
+                {/* Price Suggestion for Author */}
+                {isAuthor && item.status === 'available' && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#F59E0B', fontStyle: 'italic' }}>
+                        💡 Conseil : Si personne n'accepte, essayez d'augmenter le budget.
+                    </div>
+                )}
+
                 <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>📍 {item.locationName}</span>
                     <button
@@ -113,42 +125,52 @@ export function FeedItem({ item, onAccept, onConfirmArrival }: FeedItemComponent
             {/* Actions */}
             <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
 
-                {item.status === 'available' ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <Button variant="outline" fullWidth style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
-                            <MessageCircle size={18} style={{ marginRight: '0.5rem' }} /> Message
+                {isAuthor ? (
+                    // AUTHOR ACTIONS
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <Button fullWidth variant="outline" onClick={() => onEdit && onEdit(item.id, parseFloat(item.price), item.description)}>
+                            ✏️ Modifier / Augmenter Prix
                         </Button>
-                        <Button fullWidth onClick={() => onAccept(item.id)}>
-                            <CheckCircle size={18} style={{ marginRight: '0.5rem' }} /> Accepter
-                        </Button>
+                        {item.status === 'accepted' && (
+                            <Button fullWidth onClick={() => window.location.href = '/tracking'} variant="secondary">
+                                👁️ Suivre Prestataire (Temps Réel)
+                            </Button>
+                        )}
                     </div>
                 ) : (
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ marginBottom: '0.5rem', fontWeight: 600, color: 'var(--primary)', padding: '0.5rem', backgroundColor: '#FFF7ED', borderRadius: 'var(--radius)' }}>
-                            📞 Contact: {item.phoneNumber || 'Non renseigné'}
-                        </div>
-
-                        {/* Contact Actions Grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                            <Button fullWidth onClick={handleCall} style={{ backgroundColor: '#22C55E' }}>
-                                <Phone size={16} /> Appeler
+                    // VISITOR / PROVIDER ACTIONS
+                    item.status === 'available' ? (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <Button variant="outline" fullWidth style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                                <MessageCircle size={18} style={{ marginRight: '0.5rem' }} /> Message
                             </Button>
-                            <Button fullWidth onClick={handleSMS} style={{ backgroundColor: '#3B82F6' }}>
-                                <MessageCircle size={16} /> SMS
-                            </Button>
-                            <Button fullWidth onClick={handleWhatsApp} style={{ backgroundColor: '#25D366' }}>
-                                Or WhatsApp
+                            <Button fullWidth onClick={() => onAccept(item.id)}>
+                                <CheckCircle size={18} style={{ marginRight: '0.5rem' }} /> Accepter
                             </Button>
                         </div>
+                    ) : (
+                        // ACCEPTED VIEW (For Provider)
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ marginBottom: '0.5rem', fontWeight: 600, color: 'var(--primary)', padding: '0.5rem', backgroundColor: '#FFF7ED', borderRadius: 'var(--radius)' }}>
+                                📞 Contact: {item.phoneNumber || 'Non renseigné'}
+                            </div>
 
-                        <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.5rem 0' }}></div>
+                            {/* Contact Actions Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <Button fullWidth onClick={handleCall} style={{ backgroundColor: '#22C55E' }}>
+                                    <Phone size={16} /> Appeler
+                                </Button>
+                                <Button fullWidth onClick={handleSMS} style={{ backgroundColor: '#3B82F6' }}>
+                                    <MessageCircle size={16} /> SMS
+                                </Button>
+                                <Button fullWidth onClick={handleWhatsApp} style={{ backgroundColor: '#25D366' }}>
+                                    WhatsApp
+                                </Button>
+                            </div>
 
-                        {/* Client Simulation Actions */}
-                        <div style={{ marginTop: '0.5rem', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem' }}>
-                            <Button fullWidth onClick={() => window.location.href = '/tracking'} variant="secondary" style={{ marginBottom: '0.5rem' }}>
-                                👁️ Voir suivi temps réel (Vue Annonceur)
-                            </Button>
+                            <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.5rem 0' }}></div>
 
+                            {/* Provider Operational Actions */}
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <Button fullWidth onClick={handleNavigation} style={{ backgroundColor: '#2563EB' }}>
                                     <Navigation size={18} style={{ marginRight: '0.5rem' }} /> GPS
@@ -158,7 +180,7 @@ export function FeedItem({ item, onAccept, onConfirmArrival }: FeedItemComponent
                                 </Button>
                             </div>
                         </div>
-                    </div>
+                    )
                 )}
 
             </div>

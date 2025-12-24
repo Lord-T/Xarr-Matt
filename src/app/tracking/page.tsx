@@ -12,7 +12,28 @@ const TrackingMapWithNoSSR = dynamic(() => import('@/components/TrackingMap'), {
     loading: () => <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement de la carte...</div>
 });
 
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { useEffect, useState } from 'react';
+
 export default function TrackingPage() {
+    const router = useRouter();
+    const [isAuthorized, setIsAuthorized] = useState(false);
+
+    useEffect(() => {
+        const checkAccess = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                router.push('/login');
+            } else {
+                setIsAuthorized(true);
+            }
+        };
+        checkAccess();
+    }, [router]);
+
+    if (!isAuthorized) return <div style={{ padding: '2rem', textAlign: 'center' }}>Vérification des droits d'accès...</div>;
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
