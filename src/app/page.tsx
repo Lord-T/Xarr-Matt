@@ -230,7 +230,7 @@ export default function Home() {
 
       {/* DEBUG TRACER */}
       <div style={{ backgroundColor: '#10B981', color: '#FFFFFF', fontSize: '0.75rem', textAlign: 'center', padding: '4px', fontWeight: 'bold' }}>
-        DEBUG: Patch ULTIME (15.1.4) SUCCESS à {new Date().toLocaleTimeString()}
+        DEBUG: Patch CANARY (Securisé) SUCCESS à {new Date().toLocaleTimeString()}
       </div>
 
       {/* Header & Filter */}
