@@ -228,10 +228,7 @@ export default function Home() {
 
       <TopBar />
 
-      {/* DEBUG TRACER */}
-      <div style={{ backgroundColor: '#10B981', color: '#FFFFFF', fontSize: '0.75rem', textAlign: 'center', padding: '4px', fontWeight: 'bold' }}>
-        DEBUG: Patch CANARY (Securisé) SUCCESS à {new Date().toLocaleTimeString()}
-      </div>
+
 
       {/* Header & Filter */}
       <div style={{ padding: '0 1rem 1rem 1rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
