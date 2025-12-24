@@ -228,6 +228,11 @@ export default function Home() {
 
       <TopBar />
 
+      {/* DEBUG TRACER */}
+      <div style={{ backgroundColor: '#FEF3C7', color: '#D97706', fontSize: '0.75rem', textAlign: 'center', padding: '4px', fontWeight: 'bold' }}>
+        DEBUG: Déploiement Testé à {new Date().toLocaleTimeString()}
+      </div>
+
       {/* Header & Filter */}
       <div style={{ padding: '0 1rem 1rem 1rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
