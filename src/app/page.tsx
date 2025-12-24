@@ -229,8 +229,8 @@ export default function Home() {
       <TopBar />
 
       {/* DEBUG TRACER */}
-      <div style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontSize: '0.75rem', textAlign: 'center', padding: '4px', fontWeight: 'bold' }}>
-        DEBUG: Patch Sécurité SUCCESS à {new Date().toLocaleTimeString()}
+      <div style={{ backgroundColor: '#10B981', color: '#FFFFFF', fontSize: '0.75rem', textAlign: 'center', padding: '4px', fontWeight: 'bold' }}>
+        DEBUG: Patch ULTIME (15.1.4) SUCCESS à {new Date().toLocaleTimeString()}
       </div>
 
       {/* Header & Filter */}
