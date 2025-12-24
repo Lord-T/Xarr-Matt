@@ -230,7 +230,7 @@ export default function Home() {
 
       {/* DEBUG TRACER */}
       <div style={{ backgroundColor: '#FEF3C7', color: '#D97706', fontSize: '0.75rem', textAlign: 'center', padding: '4px', fontWeight: 'bold' }}>
-        DEBUG: Déploiement Testé à {new Date().toLocaleTimeString()}
+        DEBUG: Déploiement VERIFIÉ à {new Date().toLocaleTimeString()}
       </div>
 
       {/* Header & Filter */}
