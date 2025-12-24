@@ -25,7 +25,40 @@ export default function Home() {
     });
   }, []);
 
-  // Fetch Real Posts from Supabase
+
+
+  // Haversine Distance Helper
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  // Viewer Location State
+  const [viewerLocation, setViewerLocation] = useState<{ lat: number, lng: number } | null>(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setViewerLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => console.log("Error getting location", error),
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
+
+  // Fetch Real Posts
   useEffect(() => {
     const fetchPosts = async () => {
       try {
@@ -37,22 +70,54 @@ export default function Home() {
         if (error) throw error;
 
         if (data) {
-          const formattedAds: FeedItemProps[] = data.map(post => ({
-            id: post.id,
-            author: "Membre Xarr-Matt", // Placeholder until Profiles table
-            service: post.title,
-            description: post.description,
-            price: post.price ? `${post.price} FCFA` : 'Sur devis',
-            distance: Math.random() * 10, // Mock distance
-            timestamp: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            locationName: post.location || "Dakar",
-            lat: 14.7167, // Default Dakar
-            lng: -17.4677, // Default Dakar
-            status: 'available',
-            phoneNumber: post.contact_phone,
-            user_id: post.user_id, // Added user_id
-            audioUrl: post.audio_url
-          }));
+          const formattedAds: FeedItemProps[] = data.map(post => {
+            // Anonymity & Author Logic
+            const isMe = currentUserId === post.user_id;
+            let displayName = post.author_name;
+            if (!displayName && isMe) {
+              displayName = (supabase.auth.getUser() as any)?.data?.user?.user_metadata?.full_name || "Moi";
+            }
+            if (!displayName) displayName = "Membre Xarr-Matt";
+
+            // Coordinate Logic
+            let finalLat = post.lat;
+            let finalLng = post.lng;
+            if (!finalLat && post.location && post.location.includes(',')) {
+              const parts = post.location.split(',');
+              if (parts.length === 2) {
+                finalLat = parseFloat(parts[0]);
+                finalLng = parseFloat(parts[1]);
+              }
+            }
+            const mapLat = finalLat || 14.7167; // Default Dakar
+            const mapLng = finalLng || -17.4677;
+
+            // Distance Logic
+            let distance = 0;
+            if (viewerLocation && finalLat && finalLng) {
+              distance = calculateDistance(viewerLocation.lat, viewerLocation.lng, finalLat, finalLng);
+            } else {
+              distance = Math.random() * 5 + 1; // Fallback slightly reduced
+            }
+
+            return {
+              id: post.id,
+              author: displayName,
+              service: post.title,
+              description: post.description,
+              price: post.price ? `${post.price} FCFA` : 'Sur devis',
+              distance: parseFloat(distance.toFixed(1)),
+              timestamp: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              locationName: post.location || "Dakar",
+              lat: mapLat,
+              lng: mapLng,
+              status: 'available',
+              phoneNumber: post.contact_phone,
+              user_id: post.user_id,
+              audioUrl: post.audio_url,
+              isAnonymous: post.is_anonymous // Anonymity prop
+            };
+          });
           setAds(formattedAds);
         }
       } catch (err) {
@@ -63,7 +128,7 @@ export default function Home() {
     };
 
     fetchPosts();
-  }, []);
+  }, [viewerLocation, currentUserId]); // Depend on viewerLocation
 
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState('all');
@@ -249,3 +314,4 @@ export default function Home() {
     </div>
   );
 }
+

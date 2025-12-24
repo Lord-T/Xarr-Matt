@@ -97,7 +97,7 @@ export function TopBar() {
                     >
                         🚪 Déconnexion
                     </button>
-                    <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#888' }}>Version 1.0.0</div>
+                    <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#10B981' }}>Version 3.1 (Stable) 🚀</div>
                 </div>
             </div>
         </div>

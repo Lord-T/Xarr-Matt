@@ -1,91 +1,158 @@
 'use client';
 
-import React from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { BottomNav } from '@/components/ui/BottomNav';
-import { Phone, MessageCircle, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-
-// Dynamically import TrackingMap to avoid SSR issues
-const TrackingMapWithNoSSR = dynamic(() => import('@/components/TrackingMap'), {
-    ssr: false,
-    loading: () => <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement de la carte...</div>
-});
-
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { ArrowLeft, Navigation, MapPin, User } from 'lucide-react';
 
-export default function TrackingPage() {
+// Dynamic Import for Map (No SSR)
+const TrackingMapWithNoSSR = dynamic(
+    () => import('@/components/TrackingMap').then((mod) => mod.TrackingMap),
+    { ssr: false }
+);
+
+function TrackingContent() {
+    const searchParams = useSearchParams();
     const router = useRouter();
-    const [isAuthorized, setIsAuthorized] = useState(false);
+    const postId = searchParams.get('id');
 
+    const [post, setPost] = useState<any>(null);
+    const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // 1. Get User Location (Provider)
     useEffect(() => {
-        const checkAccess = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                router.push('/login');
-            } else {
-                setIsAuthorized(true);
-            }
-        };
-        checkAccess();
-    }, [router]);
+        if (!navigator.geolocation) {
+            setError("La géolocalisation n'est pas supportée par votre navigateur.");
+            return;
+        }
 
-    if (!isAuthorized) return <div style={{ padding: '2rem', textAlign: 'center' }}>Vérification des droits d'accès...</div>;
+        const watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                setUserLocation([position.coords.latitude, position.coords.longitude]);
+            },
+            (err) => {
+                console.error("Erreur GPS:", err);
+                // Don't block, just keep waiting or show weak signal warning
+            },
+            { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+        );
+
+        return () => navigator.geolocation.clearWatch(watchId);
+    }, []);
+
+    // 2. Fetch Post Details (Destination)
+    useEffect(() => {
+        if (!postId) return;
+
+        const fetchPost = async () => {
+            const { data, error } = await supabase
+                .from('posts')
+                .select('*')
+                .eq('id', postId)
+                .single();
+
+            if (data) {
+                // Fallback for missing coordinates in DB
+                let finalLat = data.lat;
+                let finalLng = data.lng;
+
+                // Try parsing location string "lat,lng" if columns are null
+                if (!finalLat && data.location && data.location.includes(',')) {
+                    const parts = data.location.split(',');
+                    if (parts.length === 2) {
+                        finalLat = parseFloat(parts[0]);
+                        finalLng = parseFloat(parts[1]);
+                    }
+                }
+
+                setPost({ ...data, lat: finalLat, lng: finalLng });
+            }
+            setLoading(false);
+        };
+
+        fetchPost();
+    }, [postId]);
+
+    const handleOpenGoogleMaps = () => {
+        if (post?.lat && post?.lng) {
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${post.lat},${post.lng}`, '_blank');
+        }
+    };
+
+    if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Chargement de la mission...</div>;
+    if (!post) return <div style={{ padding: '2rem', textAlign: 'center' }}>Mission introuvable.</div>;
+
+    const destination: [number, number] = [post.lat || 14.7167, post.lng || -17.4677];
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-
-            {/* Header Info */}
-            <div style={{ padding: '1rem', backgroundColor: 'white', borderBottom: '1px solid var(--border)', zIndex: 10 }}>
-                <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Suivi de commande</h1>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            MF
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 600 }}>Modou Fall</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Mécanicien • ⭐ 4.8</div>
-                        </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button style={{ padding: '0.5rem', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', cursor: 'pointer' }}>
-                            <Phone size={20} color="var(--success)" />
-                        </button>
-                        <button style={{ padding: '0.5rem', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', cursor: 'pointer' }}>
-                            <MessageCircle size={20} color="var(--primary)" />
-                        </button>
+        <div style={{ position: 'relative', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Header Overlay */}
+            <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000,
+                padding: '1rem', background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)'
+            }}>
+                <Button variant="outline" onClick={() => router.back()} style={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)', marginBottom: '1rem' }}>
+                    <ArrowLeft size={20} style={{ marginRight: '0.5rem' }} /> Retour
+                </Button>
+                <div style={{ color: 'white' }}>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{post.title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.9 }}>
+                        <User size={16} /> {post.author_name || 'Client'}
                     </div>
                 </div>
             </div>
 
             {/* Map Area */}
             <div style={{ flex: 1, position: 'relative' }}>
-                <TrackingMapWithNoSSR />
-
-                {/* Estimated Time Overlay */}
-                <div style={{
-                    position: 'absolute', top: '1rem', left: '50%', transform: 'translateX(-50%)',
-                    backgroundColor: 'white', padding: '0.5rem 1rem', borderRadius: '20px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 1000, fontWeight: 600, fontSize: '0.9rem'
-                }}>
-                    Arrivée estimée: 5 min
-                </div>
+                {userLocation ? (
+                    <TrackingMapWithNoSSR
+                        userLocation={userLocation}
+                        destination={destination}
+                    />
+                ) : (
+                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
+                        <div style={{ textAlign: 'center', padding: '1rem' }}>
+                            <div className="spinner" style={{ marginBottom: '1rem' }}>📡</div>
+                            <p>Recherche du signal GPS...</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Bottom Status Panel */}
-            <div style={{ padding: '1rem', backgroundColor: 'white', borderTop: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#F0F9FF', borderRadius: 'var(--radius)' }}>
-                    <ShieldCheck size={20} color="#0284C7" />
-                    <div style={{ fontSize: '0.85rem', color: '#0369A1' }}>
-                        Code de sécurité: <strong>8824</strong> (A donner à l'arrivée)
+            {/* Bottom Info Card */}
+            <div style={{
+                padding: '1.5rem', backgroundColor: 'white',
+                boxShadow: '0 -4px 10px rgba(0,0,0,0.1)',
+                borderTopLeftRadius: '20px', borderTopRightRadius: '20px'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div>
+                        <div style={{ fontSize: '0.8rem', color: '#64748B' }}>DISTANCE RESTANTE</div>
+                        {/* Note: In a real app we'd calculate this from the route. For now, visual estimation lines are drawn. */}
+                        <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>En route...</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#64748B' }}>DESTINATION</div>
+                        <div style={{ fontWeight: 600 }}>{post.location || 'Coordonnées GPS'}</div>
                     </div>
                 </div>
-            </div>
 
-            <BottomNav />
+                <Button fullWidth onClick={handleOpenGoogleMaps} variant="outline">
+                    <MapPin size={18} style={{ marginRight: '0.5rem' }} /> Ouvrir Google Maps (Secours)
+                </Button>
+            </div>
         </div>
+    );
+}
+
+export default function TrackingPage() {
+    return (
+        <Suspense fallback={<div>Chargement...</div>}>
+            <TrackingContent />
+        </Suspense>
     );
 }

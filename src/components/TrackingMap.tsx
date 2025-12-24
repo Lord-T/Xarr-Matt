@@ -1,104 +1,73 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { useEffect } from 'react';
 
-// Fix for Leaflet default icon issues in Next.js
-const iconUrl = 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png';
-const iconRetinaUrl = 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png';
-const shadowUrl = 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png';
+// Fix Leaflet Icons (Next.js issue)
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
-const DefaultIcon = L.icon({
-    iconUrl,
-    iconRetinaUrl,
-    shadowUrl,
+// Custom Icons
+const UserIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
-    tooltipAnchor: [16, -28],
-    shadowSize: [41, 41],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Custom Icons
-const providerIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/2972/2972185.png', // Scooter/Provider icon
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
+    shadowSize: [41, 41]
 });
 
-const clientIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png', // User/Home icon
-    iconSize: [35, 35],
-    iconAnchor: [17, 35],
-    popupAnchor: [0, -35],
+const DestIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
 });
 
-export default function TrackingMap() {
-    // Config: Dakar Plateau (Client) -> Medina (Provider Start)
-    const clientPos: [number, number] = [14.6708, -17.4334];
-    const startProviderPos: [number, number] = [14.681, -17.448];
-
-    const [providerPos, setProviderPos] = useState<[number, number]>(startProviderPos);
-    const [progress, setProgress] = useState(0);
-
+function ChangeView({ center }: { center: [number, number] }) {
+    const map = useMap();
     useEffect(() => {
-        // Simulate movement: Interpolate from Start to Client
-        const interval = setInterval(() => {
-            setProgress(old => {
-                if (old >= 1) {
-                    clearInterval(interval);
-                    return 1;
-                }
-                return old + 0.005; // Speed of simulation
-            });
-        }, 100);
+        map.setView(center);
+    }, [center, map]);
+    return null;
+}
 
-        return () => clearInterval(interval);
-    }, []);
+interface TrackingMapProps {
+    userLocation: [number, number];
+    destination: [number, number];
+}
 
-    useEffect(() => {
-        // Calculate new lat/lng based on progress
-        const lat = startProviderPos[0] + (clientPos[0] - startProviderPos[0]) * progress;
-        const lng = startProviderPos[1] + (clientPos[1] - startProviderPos[1]) * progress;
-        setProviderPos([lat, lng]);
-    }, [progress]);
+export function TrackingMap({ userLocation, destination }: TrackingMapProps) {
+    const center = userLocation;
 
     return (
-        <MapContainer
-            center={[14.675, -17.44]}
-            zoom={14}
-            style={{ height: '100%', width: '100%', zIndex: 0 }}
-        >
+        <MapContainer center={center} zoom={15} style={{ height: '100%', width: '100%' }}>
             <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            <ChangeView center={center} />
 
-            {/* Client Marker */}
-            <Marker position={clientPos} icon={clientIcon}>
-                <Popup>Vous (Client) <br /> En attente...</Popup>
+            {/* User Position */}
+            <Marker position={userLocation} icon={UserIcon}>
+                <Popup>Vous êtes ici (Prestataire)</Popup>
             </Marker>
 
-            {/* Provider Marker */}
-            <Marker position={providerPos} icon={providerIcon}>
-                <Popup>
-                    <div>
-                        <strong>Prestataire</strong><br />
-                        {progress < 1 ? 'En route...' : 'Arrivé !'}
-                    </div>
-                </Popup>
+            {/* Destination */}
+            <Marker position={destination} icon={DestIcon}>
+                <Popup>Destination (Client)</Popup>
             </Marker>
 
             {/* Route Line */}
-            <Polyline positions={[startProviderPos, clientPos]} color="blue" dashArray="10, 10" opacity={0.5} />
-
-            {/* Active Route Part */}
-            <Polyline positions={[startProviderPos, providerPos]} color="var(--primary)" weight={4} />
-
+            <Polyline positions={[userLocation, destination]} color="blue" dashArray="10, 10" />
         </MapContainer>
     );
 }
