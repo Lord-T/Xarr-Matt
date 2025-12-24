@@ -14,31 +14,36 @@ const INITIAL_ADS: FeedItemProps[] = [
         description: "Je cherche quelqu'un pour préparer un Thiéboudienne pour 10 personnes ce samedi.",
         price: "15 000 FCFA", distance: 0.5, timestamp: "Il y a 10 min", locationName: "Médina, Dakar",
         lat: 14.681, lng: -17.448, status: 'available', phoneNumber: "+221770000001",
-        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" // Demo Audio
+        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", // Demo Audio
+        user_id: "mock_1"
     },
     {
         id: 2, author: "Modou Fall", service: "Mécanique",
         description: "Mécanicien disponible pour dépannage rapide sur l'autoroute à péage.",
         price: "Sur devis", distance: 12.0, timestamp: "Il y a 2 min", locationName: "Rufisque",
-        lat: 14.712, lng: -17.271, status: 'available', phoneNumber: "+221770000002"
+        lat: 14.712, lng: -17.271, status: 'available', phoneNumber: "+221770000002",
+        user_id: "mock_2"
     },
     {
         id: 3, author: "Jean Mendy", service: "Bricolage",
         description: "Besoin d'aide pour monter une armoire et fixer des étagères.",
         price: "10 000 FCFA", distance: 1.2, timestamp: "Il y a 1h", locationName: "Plateau, Dakar",
-        lat: 14.667, lng: -17.433, status: 'available', phoneNumber: "+221770000003"
+        lat: 14.667, lng: -17.433, status: 'available', phoneNumber: "+221770000003",
+        user_id: "mock_3"
     },
     {
         id: 4, author: "Fatou Diop", service: "Transport",
         description: "Cherche course express Colobane -> Almadies pour un colis léger.",
         price: "3 000 FCFA", distance: 3.5, timestamp: "Il y a 15 min", locationName: "Colobane",
-        lat: 14.694, lng: -17.456, status: 'available', phoneNumber: "+221770000004"
+        lat: 14.694, lng: -17.456, status: 'available', phoneNumber: "+221770000004",
+        user_id: "mock_4"
     },
     {
         id: 5, author: "Ibrahima Ba", service: "Plomberie",
         description: "Fuite d'eau urgente dans la cuisine. Besoin d'un plombier qualifié.",
         price: "A discuter", distance: 0.8, timestamp: "Il y a 30 min", locationName: "Fann Hock",
-        lat: 14.688, lng: -17.464, status: 'available', phoneNumber: "+221770000005"
+        lat: 14.688, lng: -17.464, status: 'available', phoneNumber: "+221770000005",
+        user_id: "mock_5"
     },
 ];
 
@@ -180,6 +185,7 @@ export default function FeedPage() {
                         <FeedItem
                             key={ad.id}
                             item={ad}
+                            currentUserId={undefined}
                             onAccept={handleAccept}
                             onConfirmArrival={handleConfirmArrival}
                         />
