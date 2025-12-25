@@ -106,6 +106,7 @@ export default function Home() {
               service: post.title,
               description: post.description,
               price: post.price ? `${post.price} FCFA` : 'Sur devis',
+              rawPrice: post.price || 0, // Store number for calculation
               distance: parseFloat(distance.toFixed(1)),
               timestamp: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               locationName: post.location || "Dakar",
@@ -160,34 +161,50 @@ export default function Home() {
     }
   };
 
-  const handleAccept = (id: number) => {
+  const handleAccept = async (id: number) => {
+    const adToAccept = ads.find(ad => ad.id === id);
+    if (!adToAccept) return;
+
+    // 10% Commission Calculation
+    const commission = Math.ceil((adToAccept.rawPrice || 0) * 0.10);
+
     // 1. Check Balance
-    if (providerBalance < 700) {
-      if (confirm("🚫 Solde insuffisant !\n\nIl vous faut au moins 700 FCFA pour accepter une mission (Commission: 500 FCFA).\n\nVoulez-vous recharger votre compte maintenant ?")) {
+    if (providerBalance < commission) {
+      if (confirm(`🚫 Solde insuffisant !\n\nIl vous faut au moins ${commission} FCFA (10% du budget) pour accepter cette mission.\n\nVoulez-vous recharger votre compte maintenant ?`)) {
         window.location.href = '/wallet';
       }
       return; // Block execution
     }
 
-    // 2. Deduct Commission
-    if (confirm(`Accepter cette mission ?\n\nUne commission de ${COMMISSION_FEE} FCFA sera prélevée sur votre portefeuille.`)) {
-      setProviderBalance(prev => prev - COMMISSION_FEE);
+    // 2. Deduct Commission & Confirm
+    if (confirm(`Accepter cette mission ?\n\nUne commission de ${commission} FCFA (10%) sera prélevée sur votre portefeuille.`)) {
+      setProviderBalance(prev => prev - commission);
 
-      // 3. Update Status
+      // 3. Update Status (Optimistic + Backend)
       setAds(currentAds => currentAds.map(ad =>
         ad.id === id ? { ...ad, status: 'accepted' } : ad
       ));
+
+      // Real Backend Update: Mark as 'taken' (Suspended)
+      // This effectively hides it from other users who filter by 'available'
+      const { error } = await supabase
+        .from('posts')
+        .update({ status: 'taken', accepted_by: currentUserId || 'legacy_user' })
+        .eq('id', id);
+
+      if (error) console.error("Error suspending post:", error);
     }
   };
 
-  const handleConfirmArrival = (id: number) => {
-    // Simulate Client Confirmation -> Deletes Ad
+  const handleComplete = (id: number) => {
+    // Author decides to complete the job
     const ad = ads.find(a => a.id === id);
     if (ad) {
-      setRatingTarget({ id: ad.id, author: ad.author });
+      setRatingTarget({ id, author: "Prestataire" }); // Verify who we rate (normally the Provider)
       setIsRatingModalOpen(true);
     }
   };
+
 
   const handleRatingSubmit = (rating: number, comment: string) => {
     if (ratingTarget) {
@@ -217,8 +234,21 @@ export default function Home() {
       );
     }
 
-    // 2. Sort by Proximity (Distance Ascending)
-    filtered.sort((a, b) => a.distance - b.distance);
+    // 2. Sort by Relevance (Domain) then Proximity (Distance)
+    // NOTE: In a real app, 'userDomain' would come from the user's profile.
+    const userDomain = "Mécanique"; // Example: The user is a Mechanic
+
+    filtered.sort((a, b) => {
+      const aIsMyDomain = a.service.toLowerCase().includes(userDomain.toLowerCase());
+      const bIsMyDomain = b.service.toLowerCase().includes(userDomain.toLowerCase());
+
+      // Priority 1: Domain match
+      if (aIsMyDomain && !bIsMyDomain) return -1;
+      if (!aIsMyDomain && bIsMyDomain) return 1;
+
+      // Priority 2: Proximity (Distance)
+      return a.distance - b.distance;
+    });
 
     return filtered;
   }, [ads, searchTerm, category]);
@@ -293,7 +323,7 @@ export default function Home() {
               item={ad}
               currentUserId={currentUserId || undefined}
               onAccept={handleAccept}
-              onConfirmArrival={handleConfirmArrival}
+              onComplete={handleComplete}
               onEdit={handleEditPost}
             />
           ))

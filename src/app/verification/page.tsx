@@ -17,9 +17,38 @@ export default function VerificationPage() {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [uploading, setUploading] = useState(false);
+
+    // Import supabase locally or at top
+    // assuming import { supabase } from '@/lib/supabase'; is needed at top.
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setStep(2); // Move to success state
+        setUploading(true);
+
+        try {
+            if (!recto || !verso) return;
+            const { supabase } = await import('@/lib/supabase');
+
+            const timestamp = Date.now();
+            const rectoPath = `recto_${timestamp}_${recto.name}`;
+            const versoPath = `verso_${timestamp}_${verso.name}`;
+
+            // Upload Recto
+            const { error: error1 } = await supabase.storage.from('verification_docs').upload(rectoPath, recto);
+            if (error1) throw error1;
+
+            // Upload Verso
+            const { error: error2 } = await supabase.storage.from('verification_docs').upload(versoPath, verso);
+            if (error2) throw error2;
+
+            // Success
+            setStep(2);
+        } catch (error: any) {
+            alert("Erreur d'envoi: " + (error.message || "Problème réseau"));
+        } finally {
+            setUploading(false);
+        }
     };
 
     return (

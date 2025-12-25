@@ -20,17 +20,18 @@ export interface FeedItemProps {
     user_id: string; // ID of the poster
     phoneNumber?: string; // New field for contact
     audioUrl?: string; // Voice note URL
+    rawPrice?: number; // Raw numeric price for calculation
 }
 
 interface FeedItemComponentProps {
     item: FeedItemProps;
     currentUserId?: string; // ID of the logged-in user
     onAccept: (id: number) => void;
-    onConfirmArrival: (id: number) => void;
+    onComplete: (id: number) => void; // Renamed from onConfirmArrival
     onEdit?: (id: number, currentPrice: number, currentDesc: string) => void; // Callback for editing
 }
 
-export function FeedItem({ item, currentUserId, onAccept, onConfirmArrival, onEdit }: FeedItemComponentProps) {
+export function FeedItem({ item, currentUserId, onAccept, onComplete, onEdit }: FeedItemComponentProps) {
     const isAuthor = currentUserId === item.user_id;
 
     const handleNavigation = () => {
@@ -132,9 +133,14 @@ export function FeedItem({ item, currentUserId, onAccept, onConfirmArrival, onEd
                             ✏️ Modifier / Augmenter Prix
                         </Button>
                         {item.status === 'accepted' && (
-                            <Button fullWidth onClick={() => window.location.href = '/tracking'} variant="secondary">
-                                👁️ Suivre Prestataire (Temps Réel)
-                            </Button>
+                            <>
+                                <Button fullWidth onClick={() => window.location.href = `/tracking?id=${item.id}`} variant="secondary">
+                                    👁️ Suivre Prestataire (GPS)
+                                </Button>
+                                <Button fullWidth onClick={() => onComplete(item.id)} style={{ backgroundColor: '#10B981', color: 'white' }}>
+                                    ✅ Travail Terminé & Noter
+                                </Button>
+                            </>
                         )}
                     </div>
                 ) : (
@@ -173,16 +179,13 @@ export function FeedItem({ item, currentUserId, onAccept, onConfirmArrival, onEd
                             {/* Provider Operational Actions */}
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <Button fullWidth onClick={handleNavigation} style={{ backgroundColor: '#2563EB' }}>
-                                    <Navigation size={18} style={{ marginRight: '0.5rem' }} /> GPS
+                                    GPS Interne 🧭
                                 </Button>
-                                <Button fullWidth onClick={() => onConfirmArrival(item.id)} variant="outline" style={{ borderColor: 'var(--success)', color: 'var(--success)' }}>
-                                    ✅ Terminé
-                                </Button>
+                                {/* Provider cannot finish the job anymore. Only Author can. */}
                             </div>
                         </div>
                     )
                 )}
-
             </div>
         </div>
     );
