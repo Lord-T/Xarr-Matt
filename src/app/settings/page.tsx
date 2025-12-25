@@ -17,6 +17,20 @@ export default function SettingsPage() {
 
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
+                {/* ID Verification Link */}
+                <Link href="/verification" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--primary)', fontSize: '0.8rem' }}>ID</div>
+                            <div>
+                                <div style={{ fontWeight: 'bold' }}>Documents d'identification</div>
+                                <div style={{ fontSize: '0.8rem', color: '#666' }}>Badge Vérifié</div>
+                            </div>
+                        </div>
+                        <div style={{ padding: '0.25rem 0.5rem', backgroundColor: '#FEF3C7', color: '#D97706', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>Non Vérifié</div>
+                    </div>
+                </Link>
+
                 {/* Theme */}
                 <div style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
-import { ArrowLeft, Upload, CheckCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle, ShieldCheck, Camera } from 'lucide-react';
 
 export default function VerificationPage() {
     const [step, setStep] = useState(1);
@@ -84,14 +84,7 @@ export default function VerificationPage() {
                                     borderColor: recto ? 'var(--success)' : 'var(--border)'
                                 }}
                             >
-                                <input
-                                    type="file"
-                                    id="recto"
-                                    style={{ display: 'none' }}
-                                    accept="image/*"
-                                    onChange={(e) => handleUpload(e, 'recto')}
-                                />
-                                <label htmlFor="recto" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                                     {recto ? (
                                         <>
                                             <CheckCircle color="var(--success)" size={32} />
@@ -101,11 +94,28 @@ export default function VerificationPage() {
                                     ) : (
                                         <>
                                             <Upload color="var(--primary)" size={32} />
-                                            <span style={{ fontWeight: 500 }}>Scanner ou importer</span>
+                                            <span style={{ fontWeight: 500 }}>Photo Recto</span>
                                         </>
                                     )}
+                                </div>
 
-                                </label>
+                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                                    <label style={{
+                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'white'
+                                    }}>
+                                        <Upload size={18} /> Galerie
+                                        <input type="file" style={{ display: 'none' }} accept="image/*" onChange={(e) => handleUpload(e, 'recto')} />
+                                    </label>
+
+                                    <label style={{
+                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'var(--primary)', color: 'white'
+                                    }}>
+                                        <Camera size={18} /> Camera
+                                        <input type="file" style={{ display: 'none' }} accept="image/*" capture="environment" onChange={(e) => handleUpload(e, 'recto')} />
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -121,14 +131,7 @@ export default function VerificationPage() {
                                     borderColor: verso ? 'var(--success)' : 'var(--border)'
                                 }}
                             >
-                                <input
-                                    type="file"
-                                    id="verso"
-                                    style={{ display: 'none' }}
-                                    accept="image/*"
-                                    onChange={(e) => handleUpload(e, 'verso')}
-                                />
-                                <label htmlFor="verso" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                                     {verso ? (
                                         <>
                                             <CheckCircle color="var(--success)" size={32} />
@@ -138,10 +141,28 @@ export default function VerificationPage() {
                                     ) : (
                                         <>
                                             <Upload color="var(--primary)" size={32} />
-                                            <span style={{ fontWeight: 500 }}>Scanner ou importer</span>
+                                            <span style={{ fontWeight: 500 }}>Photo Verso</span>
                                         </>
                                     )}
-                                </label>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                                    <label style={{
+                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'white'
+                                    }}>
+                                        <Upload size={18} /> Galerie
+                                        <input type="file" style={{ display: 'none' }} accept="image/*" onChange={(e) => handleUpload(e, 'verso')} />
+                                    </label>
+
+                                    <label style={{
+                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'var(--primary)', color: 'white'
+                                    }}>
+                                        <Camera size={18} /> Camera
+                                        <input type="file" style={{ display: 'none' }} accept="image/*" capture="environment" onChange={(e) => handleUpload(e, 'verso')} />
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -149,30 +170,33 @@ export default function VerificationPage() {
                             Envoyer pour validation
                         </Button>
                     </form>
-                )}
+                )
+                }
 
-                {step === 2 && (
-                    <div style={{ textAlign: 'center', maxWidth: '400px', marginTop: '3rem' }}>
-                        <div style={{
-                            width: '80px', height: '80px',
-                            backgroundColor: '#DCFCE7', borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            margin: '0 auto 1.5rem auto'
-                        }}>
-                            <CheckCircle size={48} color="var(--success)" />
+                {
+                    step === 2 && (
+                        <div style={{ textAlign: 'center', maxWidth: '400px', marginTop: '3rem' }}>
+                            <div style={{
+                                width: '80px', height: '80px',
+                                backgroundColor: '#DCFCE7', borderRadius: '50%',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 1.5rem auto'
+                            }}>
+                                <CheckCircle size={48} color="var(--success)" />
+                            </div>
+                            <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Documents Reçus !</h2>
+                            <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: 1.5 }}>
+                                Notre équipe va vérifier vos documents sous 24h.
+                                Vous recevrez une notification SMS une fois votre profil certifié.
+                            </p>
+                            <Link href="/profile">
+                                <Button variant="outline">Retour au profil</Button>
+                            </Link>
                         </div>
-                        <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Documents Reçus !</h2>
-                        <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: 1.5 }}>
-                            Notre équipe va vérifier vos documents sous 24h.
-                            Vous recevrez une notification SMS une fois votre profil certifié.
-                        </p>
-                        <Link href="/profile">
-                            <Button variant="outline">Retour au profil</Button>
-                        </Link>
-                    </div>
-                )}
+                    )
+                }
 
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
