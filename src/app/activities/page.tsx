@@ -21,7 +21,7 @@ export default function ActivitiesPage() {
     useEffect(() => {
         const fetchActivities = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            if (!user) { setLoading(false); return; }
 
             const { data, error } = await supabase
                 .from('posts')
@@ -32,7 +32,10 @@ export default function ActivitiesPage() {
             if (data) setActivities(data);
             setLoading(false);
         };
+
         fetchActivities();
+        const interval = setInterval(fetchActivities, 5000); // Poll every 5s
+        return () => clearInterval(interval);
     }, []);
 
     const handleCancel = async (id: number) => {

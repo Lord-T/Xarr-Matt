@@ -19,10 +19,21 @@ export default function Home() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Fetch Current User
+  // Fetch Current User & Listen for changes
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // Initial check
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) setCurrentUserId(user.id);
+    };
+    checkUser();
+
+    // Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id || null);
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
 
