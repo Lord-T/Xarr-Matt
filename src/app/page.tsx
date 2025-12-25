@@ -131,6 +131,40 @@ export default function Home() {
     fetchPosts();
   }, [viewerLocation, currentUserId]); // Depend on viewerLocation
 
+  // 🔔 Notification Poller ( Requirement 3: Triple Notification )
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const checkMyAdsStatus = async () => {
+      const { data } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('user_id', currentUserId)
+        .eq('status', 'taken'); // Accepted by provider
+
+      if (data && data.length > 0) {
+        // Check if we already notified for these (simple local storage check to avoid spam)
+        const notifiedIds = JSON.parse(localStorage.getItem('notified_jobs') || '[]');
+        const newTaken = data.filter(ad => !notifiedIds.includes(ad.id));
+
+        if (newTaken.length > 0) {
+          // 1. Center Screen Notification (Alert)
+          alert(`🔔 EXCELLENTE NOUVELLE !\n\nVotre annonce "${newTaken[0].title}" a été acceptée par un prestataire !\n\nAllez dans "Mes Activités" pour suivre l'avancée.`);
+
+          // Mark as notified
+          const newIds = [...notifiedIds, ...newTaken.map(ad => ad.id)];
+          localStorage.setItem('notified_jobs', JSON.stringify(newIds));
+
+          // 2. Redirect optionally
+          // window.location.href = '/activities';
+        }
+      }
+    };
+
+    const interval = setInterval(checkMyAdsStatus, 10000); // Check every 10s
+    return () => clearInterval(interval);
+  }, [currentUserId]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState('all');
 
@@ -222,6 +256,11 @@ export default function Home() {
   // Sorting and Filtering Logic
   const filteredAds = useMemo(() => {
     let filtered = [...ads];
+
+    // 0. Filter OUT my own ads (Announcer view)
+    if (currentUserId) {
+      filtered = filtered.filter(ad => ad.user_id !== currentUserId);
+    }
 
     // 1. Filter by Category & Search
     if (category !== 'all') {
