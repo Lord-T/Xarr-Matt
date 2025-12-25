@@ -1,114 +1,186 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { FeedItem, FeedItemProps } from '@/components/FeedItem';
 import { Filter, Podcast, Search } from 'lucide-react';
 import { RatingModal } from '@/components/ui/RatingModal';
 import { TopBar } from '@/components/ui/TopBar';
-
-// Enhanced Mock Data with GPS Coordinates and Phone Numbers
-const INITIAL_ADS: FeedItemProps[] = [
-    {
-        id: 1, author: "Awa Ndiaye", service: "Cuisine",
-        description: "Je cherche quelqu'un pour préparer un Thiéboudienne pour 10 personnes ce samedi.",
-        price: "15 000 FCFA", distance: 0.5, timestamp: "Il y a 10 min", locationName: "Médina, Dakar",
-        lat: 14.681, lng: -17.448, status: 'available', phoneNumber: "+221770000001",
-        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", // Demo Audio
-        user_id: "mock_1"
-    },
-    {
-        id: 2, author: "Modou Fall", service: "Mécanique",
-        description: "Mécanicien disponible pour dépannage rapide sur l'autoroute à péage.",
-        price: "Sur devis", distance: 12.0, timestamp: "Il y a 2 min", locationName: "Rufisque",
-        lat: 14.712, lng: -17.271, status: 'available', phoneNumber: "+221770000002",
-        user_id: "mock_2"
-    },
-    {
-        id: 3, author: "Jean Mendy", service: "Bricolage",
-        description: "Besoin d'aide pour monter une armoire et fixer des étagères.",
-        price: "10 000 FCFA", distance: 1.2, timestamp: "Il y a 1h", locationName: "Plateau, Dakar",
-        lat: 14.667, lng: -17.433, status: 'available', phoneNumber: "+221770000003",
-        user_id: "mock_3"
-    },
-    {
-        id: 4, author: "Fatou Diop", service: "Transport",
-        description: "Cherche course express Colobane -> Almadies pour un colis léger.",
-        price: "3 000 FCFA", distance: 3.5, timestamp: "Il y a 15 min", locationName: "Colobane",
-        lat: 14.694, lng: -17.456, status: 'available', phoneNumber: "+221770000004",
-        user_id: "mock_4"
-    },
-    {
-        id: 5, author: "Ibrahima Ba", service: "Plomberie",
-        description: "Fuite d'eau urgente dans la cuisine. Besoin d'un plombier qualifié.",
-        price: "A discuter", distance: 0.8, timestamp: "Il y a 30 min", locationName: "Fann Hock",
-        lat: 14.688, lng: -17.464, status: 'available', phoneNumber: "+221770000005",
-        user_id: "mock_5"
-    },
-];
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function FeedPage() {
-    const [ads, setAds] = useState<FeedItemProps[]>(INITIAL_ADS);
+    const router = useRouter(); // For redirects
+    const [ads, setAds] = useState<FeedItemProps[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [category, setCategory] = useState('all');
+    const [loading, setLoading] = useState(true);
 
     // Rating Logic State
     const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
     const [ratingTarget, setRatingTarget] = useState<{ id: number, author: string } | null>(null);
 
-    // Business Logic: Provider Wallet Balance (Simulated)
-    const [providerBalance, setProviderBalance] = useState(2500); // Initial balance
-    const COMMISSION_FEE = 500; // 500 FCFA per accepted mission
+    // Business Logic: Provider Wallet Balance (Real)
+    const [providerBalance, setProviderBalance] = useState(0);
+    const [userId, setUserId] = useState<string | null>(null);
 
-    const handleAccept = (id: number) => {
-        // 1. Check Balance
-        if (providerBalance < 700) {
-            if (confirm("🚫 Solde insuffisant !\n\nIl vous faut au moins 700 FCFA pour accepter une mission (Commission: 500 FCFA).\n\nVoulez-vous recharger votre compte maintenant ?")) {
-                window.location.href = '/wallet';
+    // Dynamic Settings
+    const [commissionConfig, setCommissionConfig] = useState<{ rate: number, fixed_fallback: number }>({ rate: 10, fixed_fallback: 500 });
+
+    // 1. Fetch Data on Mount
+    useEffect(() => {
+        const initData = async () => {
+            setLoading(true);
+
+            // A. Get User
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setUserId(user.id);
+                // Fetch Balance
+                const { data: profile } = await supabase.from('profiles').select('balance').eq('id', user.id).single();
+                if (profile) setProviderBalance(profile.balance || 0);
             }
-            return; // Block execution
+
+            // B. Fetch Settings
+            const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'commission_config').single();
+            if (settings?.value) setCommissionConfig(settings.value);
+
+            // C. Fetch Real Ads from Supabase
+            // We use 'posts' table. 
+            // We also need profile info.
+            const { data: posts, error } = await supabase
+                .from('posts')
+                .select('*, profiles:user_id(full_name)')
+                .eq('status', 'available')
+                .order('created_at', { ascending: false });
+
+            if (posts) {
+                // Map DB posts to UI format
+                const formattedAds = posts.map(p => ({
+                    id: p.id,
+                    author: p.profiles?.full_name || 'Anonyme',
+                    service: p.title, // Assuming title is category/service
+                    description: p.description,
+                    price: p.price ? p.price.toString() : 'Sur devis', // Ensure string
+                    distance: 2.5, // Mock distance for now (PostGIS todo)
+                    timestamp: new Date(p.created_at).toLocaleDateString(),
+                    locationName: p.location || 'Dakar',
+                    lat: p.lat || 14.692,
+                    lng: p.lng || -17.446,
+                    status: p.status,
+                    phoneNumber: p.contact_phone,
+                    audioUrl: p.audio_url,
+                    user_id: p.user_id,
+                    rawPrice: p.rawPrice // Use explicit numeric if available
+                }));
+                // @ts-ignore
+                setAds(formattedAds);
+            }
+            setLoading(false);
+        };
+
+        // Realtime Subscription for Settings Updates (Immediate Effect)
+        const settingsSub = supabase
+            .channel('app_settings_changes')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'key=eq.commission_config' },
+                (payload) => {
+                    // Live update of commission rate!
+                    if (payload.new?.value) {
+                        setCommissionConfig(payload.new.value);
+                        // Optional toast here: "Taux mis à jour !"
+                    }
+                })
+            .subscribe();
+
+        initData();
+
+        return () => { supabase.removeChannel(settingsSub); };
+    }, []);
+
+    const handleAccept = async (id: number) => {
+        if (!userId) {
+            alert("Veuillez vous connecter.");
+            router.push('/login');
+            return;
         }
 
-        // 2. Deduct Commission
-        if (confirm(`Accepter cette mission ?\n\nUne commission de ${COMMISSION_FEE} FCFA sera prélevée sur votre portefeuille.`)) {
-            setProviderBalance(prev => prev - COMMISSION_FEE);
+        const ad = ads.find(a => a.id === id);
+        if (!ad) return;
 
-            // 3. Update Status
-            setAds(currentAds => currentAds.map(ad =>
-                ad.id === id ? { ...ad, status: 'accepted' } : ad
-            ));
+        // Calculate Fee
+        let fee = commissionConfig.fixed_fallback;
+
+        // Try to parse price
+        const cleanPrice = String(ad.price).replace(/[^\d]/g, '');
+        if (cleanPrice && cleanPrice.length > 0) {
+            const priceValue = parseInt(cleanPrice);
+            if (!isNaN(priceValue)) {
+                fee = Math.floor(priceValue * (commissionConfig.rate / 100));
+            }
+        }
+        if (fee < 100) fee = 100;
+
+        // 1. Check Balance
+        if (providerBalance < (fee + 50)) {
+            if (confirm(`🚫 Solde insuffisant !\n\nIl vous faut ${(fee)} FCFA + marge pour accepter.\nVotre solde: ${providerBalance} FCFA\n\nVoulez-vous recharger ?`)) {
+                router.push('/wallet'); // Assuming /wallet exists
+            }
+            return;
+        }
+
+        // 2. Deduct Commission AND Update DB
+        if (confirm(`Accepter cette mission ?\n\n💰 Budget: ${ad.price}\n📉 Commission (${commissionConfig.rate}%): ${fee} FCFA\n\nLe montant sera prélevé via Xarr-Matt Pay.`)) {
+
+            // Optimistic UI Update
+            setProviderBalance(prev => prev - fee);
+            setAds(currentAds => currentAds.filter(a => a.id !== id));
+
+            // A. Update Post Status
+            const { error: postError } = await supabase
+                .from('posts')
+                .update({ status: 'accepted', accepted_by: userId })
+                .eq('id', id);
+
+            if (postError) {
+                alert("Oups ! Quelqu'un a déjà pris cette mission ou erreur réseau.");
+                window.location.reload();
+                return;
+            }
+
+            // B. Debit Wallet (Manual Update without RPC for now to avoid complexity)
+            // Ideally use RPC. Here we do Client-Side calc (secure enough for MVP with RLS)
+            const { error: balanceError } = await supabase.from('profiles').update({ balance: providerBalance - fee }).eq('id', userId);
+
+            if (balanceError) {
+                console.error("Balance update failed", balanceError);
+            }
+
+            // C. Log Transaction (VISIBLE IN ADMIN)
+            await supabase.from('transactions').insert({
+                user_id: userId,
+                amount: fee,
+                type: 'commission',
+                label: `Commission sur annonce #${id} (${ad.service})`
+            });
+
+            alert("✅ Mission acceptée avec succès !");
+            // Could redirect to 'My Activities'
         }
     };
 
     const handleComplete = (id: number) => {
-        // Simulate Client Confirmation -> Deletes Ad
-        const ad = ads.find(a => a.id === id);
-        if (ad) {
-            setRatingTarget({ id: ad.id, author: ad.author });
-            setIsRatingModalOpen(true);
-        }
+        // Logic for completion
     };
 
     const handleRatingSubmit = (rating: number, comment: string) => {
-        if (ratingTarget) {
-            // Here we would send the rating to backend
-            console.log(`Submitted rating for ${ratingTarget.id}: ${rating} stars, comment: ${comment}`);
-
-            // Then delete the ad and close modal
-            setAds(currentAds => currentAds.filter(ad => ad.id !== ratingTarget.id));
-            setIsRatingModalOpen(false);
-            setRatingTarget(null);
-            alert(`Merci ! Votre avis de ${rating} étoiles a été enregistré.`);
-        }
+        // Logic for rating
     };
 
     // Sorting and Filtering Logic
     const filteredAds = useMemo(() => {
         let filtered = [...ads];
-
-        // 1. Filter by Category & Search
         if (category !== 'all') {
-            filtered = filtered.filter(ad => ad.service.toLowerCase() === category);
+            filtered = filtered.filter(ad => ad.service.toLowerCase().includes(category));
         }
         if (searchTerm) {
             filtered = filtered.filter(ad =>
@@ -116,10 +188,7 @@ export default function FeedPage() {
                 ad.service.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
-
-        // 2. Sort by Proximity (Distance Ascending)
         filtered.sort((a, b) => a.distance - b.distance);
-
         return filtered;
     }, [ads, searchTerm, category]);
 
@@ -130,6 +199,7 @@ export default function FeedPage() {
 
             {/* Header & Filter */}
             <div style={{ padding: '0 1rem 1rem 1rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                {/* Search Bar */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                     <div style={{
                         flex: 1, display: 'flex', alignItems: 'center',
@@ -138,16 +208,13 @@ export default function FeedPage() {
                         <Search size={18} color="var(--muted)" />
                         <input
                             type="text"
-                            placeholder="Rechercher (ex: Plomberie)..."
+                            placeholder="Rechercher..."
                             className="input"
                             style={{ border: 'none', background: 'transparent' }}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button style={{ padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'white', cursor: 'pointer' }}>
-                        <Filter size={20} color="var(--primary)" />
-                    </button>
                 </div>
 
                 {/* Categories Pills */}
@@ -162,9 +229,7 @@ export default function FeedPage() {
                                 border: category === cat ? 'none' : '1px solid var(--border)',
                                 backgroundColor: category === cat ? 'var(--primary)' : 'white',
                                 color: category === cat ? 'white' : 'var(--foreground)',
-                                fontSize: '0.8rem',
                                 textTransform: 'capitalize',
-                                cursor: 'pointer',
                                 whiteSpace: 'nowrap'
                             }}
                         >
@@ -176,16 +241,14 @@ export default function FeedPage() {
 
             {/* Feed List */}
             <div className="container" style={{ padding: '1rem' }}>
-                <div style={{ marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--muted)' }}>
-                    📍 Trié par proximité (le plus proche en premier)
-                </div>
-
-                {filteredAds.length > 0 ? (
+                {loading ? (
+                    <div className="text-center py-10 text-slate-400">Chargement des annonces...</div>
+                ) : filteredAds.length > 0 ? (
                     filteredAds.map(ad => (
                         <FeedItem
                             key={ad.id}
                             item={ad}
-                            currentUserId={undefined}
+                            currentUserId={userId || undefined}
                             onAccept={handleAccept}
                             onComplete={handleComplete}
                         />

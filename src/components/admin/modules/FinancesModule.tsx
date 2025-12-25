@@ -9,11 +9,24 @@ export function FinancesModule() {
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ totalVolume: 0, totalCommission: 0 });
-    const [commissionRate, setCommissionRate] = useState(10); // Default 10%
+    const [commissionRate, setCommissionRate] = useState(10); // Default
 
     useEffect(() => {
         fetchFinances();
+        fetchSettings();
     }, []);
+
+    const fetchSettings = async () => {
+        const { data, error } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'commission_config')
+            .single();
+
+        if (data?.value?.rate) {
+            setCommissionRate(data.value.rate);
+        }
+    };
 
     const fetchFinances = async () => {
         setLoading(true);
@@ -26,18 +39,30 @@ export function FinancesModule() {
 
         if (transData) setTransactions(transData);
 
-        // 2. Mock Stats Calculation (Real impl would use RPC or aggregation query)
-        // For now, simple client-side sum of loaded data
+        // 2. Client-side Calc
         const volume = transData?.reduce((acc, t) => acc + (t.amount || 0), 0) || 0;
-        const commission = Math.floor(volume * 0.1); // Mock 10% of volume
+        // Use current rate state (might be slightly off if not yet loaded, but accepted for dashboard)
+        const commission = Math.floor(volume * (commissionRate / 100));
         setStats({ totalVolume: volume, totalCommission: commission });
 
         setLoading(false);
     };
 
-    const handleSaveRate = () => {
+    const handleSaveRate = async () => {
         // Save to app_settings
-        alert(`Nouveau taux de commission : ${commissionRate}% (Simulation)`);
+        const { error } = await supabase
+            .from('app_settings')
+            .upsert({
+                key: 'commission_config',
+                value: { rate: commissionRate, fixed_fallback: 500 },
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) {
+            alert("Erreur sauvegarde : " + error.message);
+        } else {
+            alert(`✅ Taux de commission mis à jour à ${commissionRate}% !`);
+        }
     };
 
     return (
@@ -57,7 +82,7 @@ export function FinancesModule() {
                     <div className="text-xs text-slate-400 mt-2">Revenu Net</div>
                 </div>
                 <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white">
-                    <div className="text-slate-400 text-sm mb-1">Taux actuel</div>
+                    <div className="text-slate-400 text-sm mb-1">Taux de Commission</div>
                     <div className="flex items-center gap-4">
                         <input
                             type="number"
@@ -68,7 +93,7 @@ export function FinancesModule() {
                         <span className="text-2xl font-bold">%</span>
                     </div>
                     <Button onClick={handleSaveRate} size="sm" className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700">
-                        Mettre à jour
+                        Sauvegarder
                     </Button>
                 </div>
             </div>
@@ -95,7 +120,7 @@ export function FinancesModule() {
                                 <td className="p-4 font-medium">{t.profiles?.full_name || 'Inconnu'}</td>
                                 <td className="p-4">
                                     <span className={`flex items-center gap-2 ${t.type === 'deposit' ? 'text-green-600' :
-                                            t.type === 'withdrawal' ? 'text-red-500' : 'text-blue-500'
+                                        t.type === 'withdrawal' ? 'text-red-500' : 'text-blue-500'
                                         }`}>
                                         {t.type === 'deposit' && <ArrowDownLeft size={16} />}
                                         {t.type === 'withdrawal' && <ArrowUpRight size={16} />}
