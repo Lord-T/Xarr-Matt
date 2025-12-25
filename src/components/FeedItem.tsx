@@ -27,11 +27,12 @@ interface FeedItemComponentProps {
     item: FeedItemProps;
     currentUserId?: string; // ID of the logged-in user
     onAccept: (id: number) => void;
-    onComplete: (id: number) => void; // Renamed from onConfirmArrival
-    onEdit?: (id: number, currentPrice: number, currentDesc: string) => void; // Callback for editing
+    onComplete: (id: number) => void;
+    onEdit?: (id: number, currentPrice: number, currentDesc: string) => void;
+    onCancel?: (id: number) => void; // For author to delete/cancel
 }
 
-export function FeedItem({ item, currentUserId, onAccept, onComplete, onEdit }: FeedItemComponentProps) {
+export function FeedItem({ item, currentUserId, onAccept, onComplete, onEdit, onCancel }: FeedItemComponentProps) {
     const isAuthor = currentUserId === item.user_id;
 
     const handleNavigation = () => {

@@ -195,6 +195,13 @@ export default function Home() {
     }
   };
 
+  const handleCancel = async (id: number) => {
+    if (confirm("Voulez-vous vraiment supprimer cette annonce ?")) {
+      await supabase.from('posts').delete().eq('id', id);
+      setAds(prev => prev.filter(ad => ad.id !== id));
+    }
+  };
+
   const handleAccept = async (id: number) => {
     const adToAccept = ads.find(ad => ad.id === id);
     if (!adToAccept) return;
@@ -256,11 +263,6 @@ export default function Home() {
   // Sorting and Filtering Logic
   const filteredAds = useMemo(() => {
     let filtered = [...ads];
-
-    // 0. Filter OUT my own ads (Announcer view)
-    if (currentUserId) {
-      filtered = filtered.filter(ad => ad.user_id !== currentUserId);
-    }
 
     // 1. Filter by Category & Search
     if (category !== 'all') {
@@ -363,6 +365,7 @@ export default function Home() {
               currentUserId={currentUserId || undefined}
               onAccept={handleAccept}
               onComplete={handleComplete}
+              onCancel={handleCancel}
               onEdit={handleEditPost}
             />
           ))
