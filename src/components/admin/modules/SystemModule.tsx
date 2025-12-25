@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { PlayCircle, Palette, AlertTriangle, Save, Smartphone } from 'lucide-react';
+import { PlayCircle, Palette, AlertTriangle, Save, Smartphone, Users, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { useTheme } from '@/context/ThemeContext';
@@ -84,6 +84,84 @@ export function SystemModule() {
                         <Button className="w-full" onClick={handleSaveSplash}>
                             <Save size={18} className="mr-2" /> Enregistrer Splash
                         </Button>
+                    </div>
+                </div>
+            </div>
+
+
+            {/* ADMIN MANAGEMENT */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-purple-100 rounded-lg text-purple-600">
+                        <Users size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800">Gestion de l'Équipe Admin</h3>
+                        <p className="text-sm text-slate-500">Ajoutez des collaborateurs pour vous aider.</p>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    {/* Add Form */}
+                    <div className="flex gap-4 items-end bg-slate-50 p-4 rounded-lg">
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Email de l'utilisateur</label>
+                            <input
+                                type="email"
+                                placeholder="exemple@gmail.com"
+                                className="w-full px-4 py-2 border rounded-lg"
+                                id="newAdminEmail"
+                            />
+                        </div>
+                        <div className="w-40">
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Rôle</label>
+                            <select id="newAdminRole" className="w-full px-4 py-2 border rounded-lg bg-white">
+                                <option value="moderator">Modérateur</option>
+                                <option value="super_admin">Super Admin</option>
+                            </select>
+                        </div>
+                        <Button onClick={async () => {
+                            const emailInput = document.getElementById('newAdminEmail') as HTMLInputElement;
+                            const roleInput = document.getElementById('newAdminRole') as HTMLSelectElement;
+                            const email = emailInput.value;
+                            const role = roleInput.value;
+
+                            if (!email) return alert("Email requis");
+
+                            // 1. Get ID
+                            const { data: uid, error: uidError } = await supabase.rpc('get_user_id_by_email', { user_email: email });
+
+                            if (uidError || !uid) {
+                                alert("Utilisateur introuvable. Il doit d'abord s'inscrire sur l'app.");
+                                return;
+                            }
+
+                            // 2. Insert Role
+                            const { error: roleError } = await supabase.from('admin_roles').insert({
+                                user_id: uid,
+                                role: role
+                            });
+
+                            if (roleError) {
+                                alert("Erreur ajout: " + roleError.message);
+                            } else {
+                                alert("Admin ajouté avec succès !");
+                                emailInput.value = '';
+                                // Reload list logic here if implemented
+                            }
+                        }}>
+                            <Plus size={18} className="mr-2" /> Ajouter
+                        </Button>
+                    </div>
+
+                    {/* Admin List (Hard to fetch fully without joining profiles, keeping simple for now) */}
+                    <div className="bg-slate-50 p-4 rounded-lg text-center text-slate-500 text-sm">
+                        <em>La liste des administrateurs sera visible ici.</em>
+                        {/* 
+                            To implement list: 
+                            Need supabase.from('admin_roles').select('*, profiles(*)') 
+                            Profiles relation must be set up in DB. 
+                        */}
                     </div>
                 </div>
             </div>
