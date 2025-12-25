@@ -43,8 +43,8 @@ export default function ProfileEditPage() {
             setAvatarUrl(data.publicUrl);
             alert("Photo de profil mise à jour !");
 
-        } catch (error) {
-            alert('Erreur upload: ' + error.message);
+        } catch (error: any) {
+            alert('Erreur upload: ' + (error.message || 'Erreur inconnue'));
         } finally {
             setUploading(false);
         }
