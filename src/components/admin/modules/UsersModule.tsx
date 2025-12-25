@@ -26,6 +26,24 @@ export function UsersModule() {
         setLoading(false);
     };
 
+    // Realtime Listener
+    useEffect(() => {
+        const channel = supabase
+            .channel('admin_users_realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' },
+                (payload) => {
+                    if (payload.eventType === 'UPDATE') {
+                        setUsers(prev => prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u));
+                    }
+                    if (payload.eventType === 'INSERT') {
+                        setUsers(prev => [payload.new, ...prev]);
+                    }
+                })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, []);
+
     const handleBan = async (id: string, currentStatus: boolean) => {
         // Mock ban logic (needs 'banned' column in profiles, adding it conceptually)
         // For now, we'll just toggle a metadata field or simulate

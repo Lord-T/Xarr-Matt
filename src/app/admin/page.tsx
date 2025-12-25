@@ -29,7 +29,7 @@ export default function AdminPage() {
             }
 
             // 1. HARDCODED SUPER ADMIN (Safe Fallback)
-            const isEmailAdmin = user.email === 'ahmadoumanelfall@gmail.com';
+            const isEmailAdmin = user.email === 'ahmadoumanelfall@gmail.com' || user.email === 'ahmadeinstein4@gmail.com';
 
             // 2. DB ROLE CHECK
             const { data: roleData } = await supabase
