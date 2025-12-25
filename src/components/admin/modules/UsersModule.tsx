@@ -44,6 +44,51 @@ export function UsersModule() {
         return matchesSearch;
     });
 
+    const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [creditAmount, setCreditAmount] = useState('');
+    const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+
+    const openCreditModal = (user: any) => {
+        setSelectedUser(user);
+        setCreditAmount('');
+        setIsCreditModalOpen(true);
+    };
+
+    const handleConfirmCredit = async () => {
+        if (!selectedUser || !creditAmount) return;
+        const amount = parseInt(creditAmount);
+        if (isNaN(amount) || amount <= 0) return alert("Montant invalide");
+
+        if (!confirm(`Confirmer l'ajout de ${amount} FCFA au solde de ${selectedUser.full_name} ?`)) return;
+
+        // 1. Update Profile Balance
+        const newBalance = (selectedUser.balance || 0) + amount;
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ balance: newBalance })
+            .eq('id', selectedUser.id);
+
+        if (profileError) {
+            alert("Erreur mise à jour profil: " + profileError.message);
+            return;
+        }
+
+        // 2. Log Transaction
+        const { error: txError } = await supabase.from('transactions').insert({
+            user_id: selectedUser.id,
+            amount: amount,
+            type: 'deposit',
+            label: 'Cadeau Admin 🎁'
+        });
+
+        if (txError) console.error("Erreur log transaction", txError);
+
+        // 3. UI Update
+        alert("Succès ! Montant crédité.");
+        setUsers(users.map(u => u.id === selectedUser.id ? { ...u, balance: newBalance } : u));
+        setIsCreditModalOpen(false);
+    };
+
     return (
         <div>
             {/* Toolbar */}
@@ -68,7 +113,7 @@ export function UsersModule() {
             </div>
 
             {/* Data Table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="text-slate-500 border-b border-slate-200">
@@ -106,7 +151,7 @@ export function UsersModule() {
                                         <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">Client</span>
                                     )}
                                 </td>
-                                <td className="py-3 px-4 font-mono font-medium">
+                                <td className="py-3 px-4 font-mono font-bold text-emerald-600">
                                     {user.balance?.toLocaleString()} FCFA
                                 </td>
                                 <td className="py-3 px-4">
@@ -116,8 +161,12 @@ export function UsersModule() {
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                     <div className="flex justify-end gap-2">
-                                        <button className="p-2 hover:bg-slate-200 rounded-lg text-slate-500" title="Ajuster Solde">
-                                            <Coins size={18} />
+                                        <button
+                                            onClick={() => openCreditModal(user)}
+                                            className="px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg flex items-center gap-2 text-sm font-bold transition-colors"
+                                            title="Offrir de l'argent"
+                                        >
+                                            <Coins size={16} /> Offrir
                                         </button>
                                         <button className="p-2 hover:bg-red-100 rounded-lg text-red-500" title="Bannir">
                                             <Ban size={18} />
@@ -129,6 +178,48 @@ export function UsersModule() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Credit Modal */}
+            {isCreditModalOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
+                    <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl scale-100">
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <Coins className="text-yellow-500" /> Offrir du Crédit
+                        </h3>
+                        <p className="text-slate-600 mb-6">
+                            Vous allez ajouter des fonds au portefeuille de <strong>{selectedUser?.full_name}</strong>.
+                            Cette action est immédiate.
+                        </p>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Montant à offrir (FCFA)</label>
+                            <input
+                                type="number"
+                                className="w-full text-2xl font-mono p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                autoFocus
+                                placeholder="ex: 5000"
+                                value={creditAmount}
+                                onChange={e => setCreditAmount(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsCreditModalOpen(false)}
+                                className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg font-medium"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={handleConfirmCredit}
+                                className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-md transform active:scale-95 transition-all"
+                            >
+                                Confirmer l'envoi 💸
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
