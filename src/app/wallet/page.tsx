@@ -114,10 +114,12 @@ export default function WalletPage() {
             <PaymentModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onPaymentComplete={() => {
-                    setBalance(prev => prev + 5000);
+                onPaymentComplete={(paidAmount: number) => {
+                    setBalance(prev => prev + paidAmount);
                     setIsModalOpen(false);
-                    alert("Rechargement réussi !");
+                    // Add mock transaction
+                    // setHistory(prev => [{id: Date.now(), type:'deposit', amount: paidAmount, label:'Rechargement', date:'A l\'instant'}, ...prev])
+                    alert(`Rechargement de ${paidAmount} FCFA réussi !`);
                 }}
             />
 

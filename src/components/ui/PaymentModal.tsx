@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/Button';
 import { X, CheckCircle, Smartphone } from 'lucide-react';
 
 interface PaymentModalProps {
-    amount?: number;
+    amount?: number; // If provided, amount is fixed. If undefined, user can input.
     isOpen: boolean;
     onClose: () => void;
-    onPaymentComplete: () => void;
+    onPaymentComplete: (amount: number) => void;
 }
 
-export function PaymentModal({ amount = 5000, isOpen, onClose, onPaymentComplete }: PaymentModalProps) {
+export function PaymentModal({ amount: fixedAmount, isOpen, onClose, onPaymentComplete }: PaymentModalProps) {
+    const [amount, setAmount] = useState<number>(fixedAmount || 5000); // Default to 5000 if nothing provided
     const [method, setMethod] = useState<'wave' | 'om' | 'free' | null>(null);
     const [processing, setProcessing] = useState(false);
     const [completed, setCompleted] = useState(false);
@@ -26,8 +27,9 @@ export function PaymentModal({ amount = 5000, isOpen, onClose, onPaymentComplete
         setTimeout(() => {
             setProcessing(false);
             setCompleted(true);
+            setCompleted(true);
             setTimeout(() => {
-                onPaymentComplete();
+                onPaymentComplete(amount);
                 onClose(); // Auto close after success
             }, 2000);
         }, 2000);
@@ -59,7 +61,22 @@ export function PaymentModal({ amount = 5000, isOpen, onClose, onPaymentComplete
 
                 <div style={{ marginBottom: '2rem' }}>
                     <div style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Montant à payer</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>{amount.toLocaleString()} FCFA</div>
+                    {fixedAmount ? (
+                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>{amount.toLocaleString()} FCFA</div>
+                    ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', border: '2px solid var(--primary)', borderRadius: '12px', padding: '0.5rem 1rem' }}>
+                            <input
+                                type="number"
+                                value={amount}
+                                onChange={(e) => setAmount(Number(e.target.value))}
+                                style={{
+                                    fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)',
+                                    border: 'none', width: '100%', outline: 'none', background: 'transparent'
+                                }}
+                            />
+                            <span style={{ fontWeight: 600, color: 'var(--primary)' }}>FCFA</span>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
