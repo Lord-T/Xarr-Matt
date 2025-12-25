@@ -85,6 +85,23 @@ export function TopBar() {
                     <Link href="/settings" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', color: 'var(--foreground)', fontSize: '1.1rem' }}>
                         ⚙️ Paramètres
                     </Link>
+                    <button
+                        onClick={() => {
+                            if (navigator.share) {
+                                navigator.share({
+                                    title: 'Rejoins Xarr-Matt !',
+                                    text: 'Trouve les meilleurs prestataires autour de toi ou propose tes services sur Xarr-Matt.',
+                                    url: window.location.origin
+                                }).catch(console.error);
+                            } else {
+                                alert("Pour inviter, partagez ce lien : " + window.location.origin);
+                            }
+                            setIsMenuOpen(false);
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '1.1rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                    >
+                        💌 Inviter un ami
+                    </button>
                 </nav>
 
                 <div style={{ marginTop: 'auto' }}>

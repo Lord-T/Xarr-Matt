@@ -3,18 +3,52 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, Camera, Image as ImageIcon, Save } from 'lucide-react';
+import { ArrowLeft, Camera, Image as ImageIcon, Save, Loader } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function ProfileEditPage() {
     const router = useRouter();
 
-    // Mock Initial Data
+    const [uploading, setUploading] = useState(false);
+    const [avatarUrl, setAvatarUrl] = useState("https://randomuser.me/api/portraits/men/32.jpg");
+
     const [formData, setFormData] = useState({
         name: "Modou Fall",
         job: "Mécanicien Expert",
         location: "Rufisque, Dakar",
         bio: "Spécialiste des pannes moteurs et électronique auto. Disponible 7j/7 pour intervention rapide sur Dakar et banlieue."
     });
+
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        try {
+            setUploading(true);
+            if (!event.target.files || event.target.files.length === 0) {
+                throw new Error('You must select an image to upload.');
+            }
+
+            const file = event.target.files[0];
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file);
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
+            const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+            setAvatarUrl(data.publicUrl);
+            alert("Photo de profil mise à jour !");
+
+        } catch (error) {
+            alert('Erreur upload: ' + error.message);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,10 +72,18 @@ export default function ProfileEditPage() {
 
                 {/* Avatar Edit */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#E2E8F0', border: '4px solid white', backgroundImage: 'url("https://randomuser.me/api/portraits/men/32.jpg")', backgroundSize: 'cover', position: 'relative' }}>
-                        <div style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: 'var(--primary)', padding: '0.4rem', borderRadius: '50%', color: 'white', cursor: 'pointer' }}>
-                            <Camera size={16} />
-                        </div>
+                    <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#E2E8F0', border: '4px solid white', backgroundImage: `url("${avatarUrl}")`, backgroundSize: 'cover', position: 'relative' }}>
+                        <label htmlFor="avatar-upload" style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: 'var(--primary)', padding: '0.4rem', borderRadius: '50%', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {uploading ? <Loader size={16} className="animate-spin" /> : <Camera size={16} />}
+                        </label>
+                        <input
+                            type="file"
+                            id="avatar-upload"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            disabled={uploading}
+                            style={{ display: 'none' }}
+                        />
                     </div>
                     <span style={{ fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 600 }}>Changer la photo</span>
                 </div>
