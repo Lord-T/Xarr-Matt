@@ -10,10 +10,13 @@ import {
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 
+import { useTheme } from '@/context/ThemeContext';
+
 // Admin Modules
 type AdminTab = 'verification' | 'moderation' | 'users' | 'marketing' | 'system';
 
 export default function AdminPage() {
+    const { setPrimaryColor } = useTheme();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<AdminTab>('verification');
     const [loading, setLoading] = useState(true);
@@ -101,11 +104,10 @@ export default function AdminPage() {
     };
 
     const handleUpdateTheme = (color: string) => {
-        setThemeColor(color);
-        // Inject into CSS root (Live Preview)
-        document.documentElement.style.setProperty('--primary', color);
-        // Save to DB (app_settings) would go here
-        alert(`Thème passé en ${color} ! (Simulation)`);
+        setPrimaryColor(color); // Uses Context => LocalStorage + CSS Variable
+        setThemeColor(color); // UI State
+        // TODO: Save to 'app_settings' DB table for global persistence
+        alert(`Thème passé en ${color} !`);
     };
 
     if (loading && !isAdmin) return <div className="p-8 text-center">Chargement Admin...</div>;

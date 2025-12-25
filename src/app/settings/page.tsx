@@ -4,7 +4,10 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Moon, Globe, Bell } from 'lucide-react';
 
+import { useTheme } from '@/context/ThemeContext';
+
 export default function SettingsPage() {
+    const { theme, toggleTheme } = useTheme();
     return (
         <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)' }}>
             {/* Header */}
@@ -31,16 +34,29 @@ export default function SettingsPage() {
                     </div>
                 </Link>
 
-                {/* Theme */}
-                <div style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                {/* Theme Toggle */}
+                <div
+                    onClick={toggleTheme}
+                    style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <Moon size={24} />
+                        <Moon size={24} color={theme === 'dark' ? 'var(--primary)' : 'black'} fill={theme === 'dark' ? 'var(--primary)' : 'none'} />
                         <div>
                             <div style={{ fontWeight: 'bold' }}>Mode Sombre</div>
-                            <div style={{ fontSize: '0.8rem', color: '#666' }}>Bientôt disponible</div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>{theme === 'dark' ? 'Activé' : 'Désactivé'}</div>
                         </div>
                     </div>
-                    <div style={{ width: '40px', height: '24px', backgroundColor: '#E5E7EB', borderRadius: '12px' }}></div>
+                    <div style={{
+                        width: '48px', height: '24px',
+                        backgroundColor: theme === 'dark' ? 'var(--primary)' : '#E5E7EB',
+                        borderRadius: '99px', position: 'relative', transition: 'background-color 0.2s'
+                    }}>
+                        <div style={{
+                            width: '20px', height: '20px', backgroundColor: 'white', borderRadius: '50%',
+                            position: 'absolute', top: '2px', left: theme === 'dark' ? '26px' : '2px',
+                            transition: 'left 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                        }} />
+                    </div>
                 </div>
 
                 {/* Notifications */}
