@@ -39,11 +39,28 @@ export function FinancesModule() {
 
         if (transData) setTransactions(transData);
 
-        // 2. Client-side Calc
-        const volume = transData?.reduce((acc, t) => acc + (t.amount || 0), 0) || 0;
-        // Use current rate state (might be slightly off if not yet loaded, but accepted for dashboard)
-        const commission = Math.floor(volume * (commissionRate / 100));
-        setStats({ totalVolume: volume, totalCommission: commission });
+        // 2. Stats Calculation
+        // Volume = Total money moved (Deposits - Withdrawals + Commissions?) 
+        // Or simpler: Volume = Sum of all commissions for net revenue view? 
+        // Let's stick to user request: "Volume Total" seems to imply Platform Volume.
+        // But for Admin "Revenue", we want Commissions.
+
+        let totalComm = 0;
+        let totalVol = 0;
+
+        // Fetch ALL commissions for accurate stats (bypass limit 50)
+        const { data: allComms } = await supabase.from('transactions').select('amount').eq('type', 'commission');
+        if (allComms) {
+            totalComm = allComms.reduce((acc, t) => acc + (t.amount || 0), 0);
+        }
+
+        // Fetch Total User Balances (Money currently in system)
+        const { data: allProfiles } = await supabase.from('profiles').select('balance');
+        if (allProfiles) {
+            totalVol = allProfiles.reduce((acc, p) => acc + (p.balance || 0), 0);
+        }
+
+        setStats({ totalVolume: totalVol, totalCommission: totalComm });
 
         setLoading(false);
     };
