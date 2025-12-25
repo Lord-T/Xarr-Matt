@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { ArrowLeft, MapPin, XCircle, RotateCcw, Eye, Edit } from 'lucide-react';
+import { ArrowLeft, MapPin, XCircle, RotateCcw, Eye, Edit, User, Phone, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
@@ -39,6 +39,22 @@ export default function ActivitiesPage() {
         if (confirm("Voulez-vous vraiment annuler cette annonce ?")) {
             await supabase.from('posts').delete().eq('id', id);
             setActivities(prev => prev.filter(a => a.id !== id));
+        }
+    };
+
+    const handleRefuse = async (id: number, providerId: string, price: number) => {
+        if (confirm("Refuser ce prestataire ?\n\nIl sera notifié et sa commission lui sera remboursée.")) {
+            // 1. Refund Logic (Simulation or Real DB calls)
+            // In a real app, we would increment the provider's wallet balance here.
+            // await supabase.rpc('increment_balance', { user_id: providerId, amount: Math.ceil(price * 0.10) });
+
+            // 2. Reset Post
+            await supabase.from('posts').update({ status: 'available', accepted_by: null }).eq('id', id);
+
+            // 3. UI Update
+            setActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'available', accepted_by: null } : a));
+
+            alert(`Prestataire refusé. La commission (${Math.ceil(price * 0.10)} FCFA) a été restituée.`);
         }
     };
 
@@ -124,14 +140,34 @@ export default function ActivitiesPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     {/* Edit / Check Logic */}
                                     {(activity.status === 'taken' || activity.status === 'accepted') ? (
-                                        <>
-                                            <Button fullWidth onClick={() => router.push(`/tracking?id=${activity.id}`)} style={{ backgroundColor: '#2563EB' }}>
-                                                🛰️ Suivre le Prestataire
-                                            </Button>
-                                            <Button fullWidth onClick={() => handleComplete(activity.id, activity.accepted_by)} style={{ backgroundColor: '#10B981', color: 'white' }}>
-                                                ✅ Travail Terminé & Noter
-                                            </Button>
-                                        </>
+                                        <div style={{ backgroundColor: '#F0F9FF', padding: '1rem', borderRadius: '8px', marginBottom: '0.5rem', border: '1px solid #BAE6FD' }}>
+                                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                                                <div style={{ width: '50px', height: '50px', backgroundColor: '#E0F2FE', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <User size={24} color="#0284C7" />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: 600 }}>Prestataire accepté</div>
+                                                    <div style={{ fontSize: '0.85rem', color: '#64748B' }}>Modou Diop (Simulé)</div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', color: '#F59E0B' }}>
+                                                        <Star size={12} fill="#F59E0B" /> 4.8/5
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                                <Button fullWidth onClick={() => router.push(`/tracking?id=${activity.id}`)} style={{ backgroundColor: '#2563EB', fontSize: '0.8rem' }}>
+                                                    Locations & Détails
+                                                </Button>
+                                                <Button fullWidth onClick={() => handleRefuse(activity.id, activity.accepted_by, activity.price)} variant="outline" style={{ borderColor: '#EF4444', color: '#EF4444', fontSize: '0.8rem' }}>
+                                                    Refuser
+                                                </Button>
+                                            </div>
+                                            <div style={{ marginTop: '0.5rem' }}>
+                                                <Button fullWidth onClick={() => handleComplete(activity.id, activity.accepted_by)} style={{ backgroundColor: '#10B981', color: 'white' }}>
+                                                    ✅ Valider & Terminer
+                                                </Button>
+                                            </div>
+                                        </div>
                                     ) : (
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                                             <Button fullWidth variant="outline" onClick={() => alert("Fonction modifier bientôt disponible")}>
