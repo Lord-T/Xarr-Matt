@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 import { ArrowLeft, Upload, CheckCircle, ShieldCheck, Camera } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function VerificationPage() {
     const [step, setStep] = useState(1);
@@ -28,23 +29,44 @@ export default function VerificationPage() {
 
         try {
             if (!recto || !verso) return;
-            const { supabase } = await import('@/lib/supabase');
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Non connecté");
 
             const timestamp = Date.now();
-            const rectoPath = `recto_${timestamp}_${recto.name}`;
-            const versoPath = `verso_${timestamp}_${verso.name}`;
+            // Secure Path: UserID/Type_Timestamp.ext
+            const rectoPath = `${user.id}/recto_${timestamp}.${recto.name.split('.').pop()}`;
+            const versoPath = `${user.id}/verso_${timestamp}.${verso.name.split('.').pop()}`;
 
-            // Upload Recto
+            // 1. Upload Recto to Secure Bucket
             const { error: error1 } = await supabase.storage.from('verification_docs').upload(rectoPath, recto);
             if (error1) throw error1;
 
-            // Upload Verso
+            // 2. Upload Verso
             const { error: error2 } = await supabase.storage.from('verification_docs').upload(versoPath, verso);
             if (error2) throw error2;
 
-            // Success
+            // 3. Persist Request in DB (For Admin Review)
+            const { error: dbError } = await supabase.from('verification_docs').insert({
+                user_id: user.id,
+                recto_url: rectoPath,
+                verso_url: versoPath,
+                status: 'pending' // En attente de validation manuelle/IA
+            });
+
+            // If table doesn't exist yet (User didn't run SQL), fallback to Profile update
+            if (dbError) {
+                console.warn("Table verification_docs not found, updating profile instead.");
+                await supabase.from('profiles').update({
+                    is_verified: false, // Not yet
+                    verification_status: 'pending'
+                }).eq('id', user.id);
+            }
+
+            // Success UI
             setStep(2);
+
         } catch (error: any) {
+            console.error("Upload error:", error);
             alert("Erreur d'envoi: " + (error.message || "Problème réseau"));
         } finally {
             setUploading(false);
