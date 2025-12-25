@@ -11,21 +11,27 @@ import { TopBar } from '@/components/ui/TopBar';
 
 import { supabase } from '@/lib/supabase';
 
-// Keep INITIAL_ADS as a fallback or remove it if we want purely dynamic
+// Keep INITIAL_ADS as a fallback
 const INITIAL_ADS: FeedItemProps[] = [];
 
 export default function Home() {
   const [ads, setAds] = useState<FeedItemProps[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [providerBalance, setProviderBalance] = useState(0);
+  const [viewerLocation, setViewerLocation] = useState<{ lat: number, lng: number } | null>(null);
 
-  // Fetch Current User
-  // Fetch Current User & Listen for changes
+  // Fetch Current User & Balance
   useEffect(() => {
     // Initial check
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUserId(user.id);
+      if (user) {
+        setCurrentUserId(user.id);
+        // Fetch real balance
+        const { data } = await supabase.from('profiles').select('balance').eq('id', user.id).single();
+        if (data) setProviderBalance(data.balance || 0);
+      }
     };
     checkUser();
 
@@ -51,9 +57,6 @@ export default function Home() {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in km
   };
-
-  // Viewer Location State
-  const [viewerLocation, setViewerLocation] = useState<{ lat: number, lng: number } | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -184,9 +187,9 @@ export default function Home() {
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<{ id: number, author: string } | null>(null);
 
-  // Business Logic: Provider Wallet Balance (Simulated)
-  const [providerBalance, setProviderBalance] = useState(2500); // Initial balance
-  const COMMISSION_FEE = 500; // 500 FCFA per accepted mission
+  // Business Logic: Provider Wallet Balance (Simulated removed, now real)
+  const COMMISSION_FEE = 0; // Dynamic now
+
 
   const handleEditPost = async (id: number, currentPrice: number, currentDesc: string) => {
     const newPrice = prompt("Modifier le budget (FCFA) :", currentPrice.toString());

@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, CreditCard, History, Wallet, TrendingUp, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { ArrowLeft, Wallet, TrendingUp, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
 import { PaymentModal } from '@/components/ui/PaymentModal';
+import { supabase } from '@/lib/supabase';
 
 export default function WalletPage() {
     const router = useRouter();
-    const [balance, setBalance] = useState(2500); // Low balance example
+    const [balance, setBalance] = useState(0); // Default to 0 as per requirements
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Mock Data for Chart
@@ -24,12 +26,35 @@ export default function WalletPage() {
     ];
     const maxGain = Math.max(...dailyGains.map(d => d.amount));
 
-    // Mock Transaction History
-    const history = [
-        { id: 1, type: 'withdraw', amount: 1500, label: 'Commission - Plomberie', date: 'Aujourd\'hui, 14:30' },
-        { id: 2, type: 'deposit', amount: 5000, label: 'Rechargement Wave', date: 'Aujourd\'hui, 10:00' },
-        { id: 3, type: 'withdraw', amount: 500, label: 'Commission - Serrurerie', date: 'Hier, 18:20' },
-    ];
+    // Transaction History Logic
+    const [history, setHistory] = useState<any[]>([]);
+
+    const fetchHistory = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20);
+            if (data) setHistory(data.map(t => ({
+                id: t.id,
+                type: t.type,
+                amount: t.amount,
+                label: t.label || 'Transaction',
+                date: new Date(t.created_at).toLocaleDateString() + ' ' + new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            })));
+        }
+    };
+
+    // Fetch on mount
+    useEffect(() => {
+        const init = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data } = await supabase.from('profiles').select('balance').eq('id', user.id).single();
+                if (data) setBalance(data.balance || 0);
+                fetchHistory();
+            }
+        };
+        init();
+    }, []);
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '80px', display: 'flex', flexDirection: 'column' }}>
@@ -114,12 +139,36 @@ export default function WalletPage() {
             <PaymentModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onPaymentComplete={(paidAmount: number) => {
+                onPaymentComplete={async (paidAmount: number) => {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+
+                    // 1. Update Profile Balance
+                    const { error: profileError } = await supabase.rpc('increment_balance', {
+                        user_id_param: user.id,
+                        amount_param: paidAmount
+                    });
+
+                    // Fallback if RPC not exists (though concurrent unsafe, ok for now)
+                    if (profileError) {
+                        console.warn("RPC failed, using direct update", profileError);
+                        const { data: currentProfile } = await supabase.from('profiles').select('balance').eq('id', user.id).single();
+                        const newBalance = (currentProfile?.balance || 0) + paidAmount;
+                        await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id);
+                    }
+
+                    // 2. Add Transaction
+                    await supabase.from('transactions').insert({
+                        user_id: user.id,
+                        amount: paidAmount,
+                        type: 'deposit',
+                        label: 'Rechargement Mobile Money'
+                    });
+
                     setBalance(prev => prev + paidAmount);
+                    fetchHistory(); // Refresh history
                     setIsModalOpen(false);
-                    // Add mock transaction
-                    // setHistory(prev => [{id: Date.now(), type:'deposit', amount: paidAmount, label:'Rechargement', date:'A l\'instant'}, ...prev])
-                    alert(`Rechargement de ${paidAmount} FCFA réussi !`);
+                    alert(`Compte rechargé de ${paidAmount} FCFA avec succès !`);
                 }}
             />
 

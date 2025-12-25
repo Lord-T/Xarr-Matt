@@ -5,9 +5,55 @@ import Link from 'next/link';
 import { ArrowLeft, Moon, Globe, Bell } from 'lucide-react';
 
 import { useTheme } from '@/context/ThemeContext';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { supabase } from '@/lib/supabase';
+import { ShieldCheck } from 'lucide-react';
+
+// Sub-component for Admin Check to keep main clean
+function AdminAccessLink() {
+    const [isAdmin, setIsAdmin] = React.useState(false);
+
+    React.useEffect(() => {
+        const check = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.email === 'ahmadoumanelfall@gmail.com') {
+                setIsAdmin(true);
+            }
+        };
+        check();
+    }, []);
+
+    if (!isAdmin) return null;
+
+    return (
+        <Link href="/admin" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div style={{
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                padding: '1rem',
+                borderRadius: '12px',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ padding: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                        <ShieldCheck size={24} color="#10B981" />
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>Espace Administrateur</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>Gérer Xarr-Matt</div>
+                    </div>
+                </div>
+            </div>
+        </Link>
+    );
+}
 
 export default function SettingsPage() {
     const { theme, toggleTheme } = useTheme();
+    const { permission, subscribe } = usePushNotifications();
     return (
         <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)' }}>
             {/* Header */}
@@ -62,15 +108,24 @@ export default function SettingsPage() {
                 {/* Notifications */}
                 <div style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <Bell size={24} />
+                        <Bell size={24} color={permission === 'granted' ? 'var(--primary)' : 'black'} fill={permission === 'granted' ? 'var(--primary)' : 'none'} />
                         <div>
-                            <div style={{ fontWeight: 'bold' }}>Notifications</div>
-                            <div style={{ fontSize: '0.8rem', color: '#666' }}>Activer les alertes</div>
+                            <div style={{ fontWeight: 'bold' }}>Notifications Push</div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                {permission === 'granted' ? 'Activées' : 'Recevoir les alertes'}
+                            </div>
                         </div>
                     </div>
-                    <div style={{ width: '40px', height: '24px', backgroundColor: '#10B981', borderRadius: '12px', position: 'relative' }}>
-                        <div style={{ position: 'absolute', right: '2px', top: '2px', width: '20px', height: '20px', backgroundColor: 'white', borderRadius: '50%' }}></div>
-                    </div>
+                    {permission !== 'granted' && (
+                        <button onClick={subscribe} style={{ padding: '0.5rem 1rem', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                            Activer
+                        </button>
+                    )}
+                    {permission === 'granted' && (
+                        <div style={{ width: '48px', height: '24px', backgroundColor: 'var(--primary)', borderRadius: '99px', position: 'relative' }}>
+                            <div style={{ width: '20px', height: '20px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '26px' }} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Langue */}
@@ -83,6 +138,9 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* --- ADMIN ACCESS (Hidden for others) --- */}
+                <AdminAccessLink />
 
                 <div style={{ fontSize: '0.8rem', color: '#888', textAlign: 'center', marginTop: '2rem' }}>
                     Xarr-Matt v1.0.0<br />
