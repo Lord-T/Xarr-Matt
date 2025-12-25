@@ -80,7 +80,7 @@ export default function FeedPage() {
         }
     };
 
-    const handleConfirmArrival = (id: number) => {
+    const handleComplete = (id: number) => {
         // Simulate Client Confirmation -> Deletes Ad
         const ad = ads.find(a => a.id === id);
         if (ad) {
@@ -187,7 +187,7 @@ export default function FeedPage() {
                             item={ad}
                             currentUserId={undefined}
                             onAccept={handleAccept}
-                            onConfirmArrival={handleConfirmArrival}
+                            onComplete={handleComplete}
                         />
                     ))
                 ) : (
