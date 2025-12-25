@@ -48,7 +48,8 @@ export default function AdminPage() {
             }
         };
         checkAdmin();
-    }, []);
+
+    }, [router]);
 
     if (loading) return (
         <div className="h-screen w-full flex items-center justify-center bg-slate-50">
