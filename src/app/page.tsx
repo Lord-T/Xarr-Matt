@@ -5,6 +5,7 @@ import { BottomNav } from '@/components/ui/BottomNav';
 import { FeedItem, FeedItemProps } from '@/components/FeedItem';
 import { Filter, Podcast, Search } from 'lucide-react';
 import { RatingModal } from '@/components/ui/RatingModal';
+import SplashAd from '@/components/SplashAd';
 import { TopBar } from '@/components/ui/TopBar';
 
 
