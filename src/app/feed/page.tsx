@@ -129,47 +129,37 @@ export default function FeedPage() {
         }
 
         // 2. Deduct Commission AND Update DB
-        if (confirm(`Accepter cette mission ?\n\n💰 Budget: ${ad.price}\n📉 Commission (${commissionConfig.rate}%): ${fee} FCFA\n\nLe montant sera prélevé via Xarr-Matt Pay.`)) {
+        // 2. ATOMIC TRANSACTION (Secure Server-Side Logic)
+        if (confirm(`Accepter cette mission ?\n\n💰 Budget: ${ad.price}\n📉 Commission (${commissionConfig.rate}%): ${fee} FCFA\n\nLe montant sera prélevé et le client notifié.`)) {
 
-            // Optimistic UI Update
+            // Optimistic UI Update (Immediate Feedback)
             setProviderBalance(prev => prev - fee);
             setAds(currentAds => currentAds.filter(a => a.id !== id));
 
-            // A. Update Post Status
-            const { error: postError } = await supabase
-                .from('posts')
-                .update({ status: 'accepted', accepted_by: userId })
-                .eq('id', id);
-
-            if (postError) {
-                alert("Oups ! Quelqu'un a déjà pris cette mission ou erreur réseau.");
-                window.location.reload();
-                return;
-            }
-
-            // B. Execute Secure Transaction via RPC (Updated Params V2) - Force Deploy
-            const { data: rpcData, error: rpcError } = await supabase.rpc('deduct_balance', {
+            // Call the Atomic Function
+            const { data: result, error: rpcError } = await supabase.rpc('accept_mission', {
                 p_user_id: userId,
-                p_amount: fee,
-                p_description: `Commission annonce #${id} (${ad.service})`
+                p_post_id: id,
+                p_fee_amount: fee,
+                p_commission_rate: commissionConfig.rate
             });
 
             if (rpcError) {
-                alert("Erreur transaction : " + rpcError.message);
+                alert("Erreur technique : " + rpcError.message);
+                window.location.reload(); // Revert UI on error
+                return;
+            }
+
+            // @ts-ignore
+            if (result && result.success === false) {
+                // @ts-ignore
+                alert("Echec : " + result.message);
                 window.location.reload();
                 return;
             }
 
-            // C. Log Transaction (VISIBLE IN ADMIN)
-            await supabase.from('transactions').insert({
-                user_id: userId,
-                amount: fee,
-                type: 'commission',
-                label: `Commission sur annonce #${id} (${ad.service})`
-            });
-
-            alert("✅ Mission acceptée avec succès !");
-            // Could redirect to 'My Activities'
+            alert("✅ Mission acceptée ! Le client a été notifié.");
+            // Optional: Redirect to "My Missions" page
         }
     };
 
