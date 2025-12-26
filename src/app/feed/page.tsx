@@ -147,12 +147,17 @@ export default function FeedPage() {
                 return;
             }
 
-            // B. Debit Wallet (Manual Update without RPC for now to avoid complexity)
-            // Ideally use RPC. Here we do Client-Side calc (secure enough for MVP with RLS)
-            const { error: balanceError } = await supabase.from('profiles').update({ balance: providerBalance - fee }).eq('id', userId);
+            // B. Execute Secure Transaction via RPC (Updated Params V2) - Force Deploy
+            const { data: rpcData, error: rpcError } = await supabase.rpc('deduct_balance', {
+                p_user_id: userId,
+                p_amount: fee,
+                p_description: `Commission annonce #${id} (${ad.service})`
+            });
 
-            if (balanceError) {
-                console.error("Balance update failed", balanceError);
+            if (rpcError) {
+                alert("Erreur transaction : " + rpcError.message);
+                window.location.reload();
+                return;
             }
 
             // C. Log Transaction (VISIBLE IN ADMIN)
