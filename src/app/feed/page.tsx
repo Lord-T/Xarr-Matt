@@ -130,23 +130,21 @@ export default function FeedPage() {
 
         // 2. Deduct Commission AND Update DB
         // 2. ATOMIC TRANSACTION (Secure Server-Side Logic)
-        if (confirm(`Accepter cette mission ?\n\n💰 Budget: ${ad.price}\n📉 Commission (${commissionConfig.rate}%): ${fee} FCFA\n\nLe montant sera prélevé et le client notifié.`)) {
+        // 2. APPLY TRANSACTION (Candidate Mode)
+        if (confirm(`Postuler pour cette mission ?\n\nVotre profil sera envoyé au client pour validation.\nL'argent ne sera débité QUE si le client vous accepte.`)) {
 
-            // Optimistic UI Update (Immediate Feedback)
-            setProviderBalance(prev => prev - fee);
+            // UI Feedback
             setAds(currentAds => currentAds.filter(a => a.id !== id));
 
-            // Call the Atomic Function
-            const { data: result, error: rpcError } = await supabase.rpc('accept_mission', {
+            // Call the Apply Function
+            const { data: result, error: rpcError } = await supabase.rpc('apply_for_mission', {
                 p_user_id: userId,
-                p_post_id: id,
-                p_fee_amount: fee,
-                p_commission_rate: commissionConfig.rate
+                p_post_id: id
             });
 
             if (rpcError) {
                 alert("Erreur technique : " + rpcError.message);
-                window.location.reload(); // Revert UI on error
+                window.location.reload();
                 return;
             }
 
@@ -158,8 +156,7 @@ export default function FeedPage() {
                 return;
             }
 
-            alert("✅ Mission acceptée ! Le client a été notifié.");
-            // Optional: Redirect to "My Missions" page
+            alert("✅ Candidature envoyée ! Vous recevrez une notif si le client valide.");
         }
     };
 
