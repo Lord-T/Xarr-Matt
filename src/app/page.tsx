@@ -112,7 +112,7 @@ export default function Home() {
             if (viewerLocation && finalLat && finalLng) {
               distance = calculateDistance(viewerLocation.lat, viewerLocation.lng, finalLat, finalLng);
             } else {
-              distance = Math.random() * 5 + 1; // Fallback slightly reduced
+              distance = 0; // No fake random distance
             }
 
             return {
@@ -221,34 +221,41 @@ export default function Home() {
     const adToAccept = ads.find(ad => ad.id === id);
     if (!adToAccept) return;
 
-    // 10% Commission Calculation
-    const commission = Math.ceil((adToAccept.rawPrice || 0) * 0.10);
+    // Use dynamic commission rate from settings (default 10% if not loaded yet)
+    // Ideally we should fetch this or pass it down. For now, assuming standard rate.
+    const rate = 10;
+    const fee = Math.ceil((adToAccept.rawPrice || 0) * (rate / 100));
 
-    // 1. Check Balance
-    if (providerBalance < commission) {
-      if (confirm(`🚫 Solde insuffisant !\n\nIl vous faut au moins ${commission} FCFA (10% du budget) pour accepter cette mission.\n\nVoulez-vous recharger votre compte maintenant ?`)) {
-        window.location.href = '/wallet';
+    // 2. ATOMIC TRANSACTION (Secure Server-Side Logic)
+    if (confirm(`Accepter cette mission ?\n\n💰 Budget: ${adToAccept.price}\n📉 Commission (${rate}%): ${fee} FCFA\n\nLe montant sera prélevé et le client notifié.`)) {
+
+      // Optimistic UI Update
+      setProviderBalance(prev => prev - fee);
+      setAds(currentAds => currentAds.filter(a => a.id !== id));
+
+      // Call the Atomic Function
+      const { data: result, error: rpcError } = await supabase.rpc('accept_mission', {
+        p_user_id: currentUserId,
+        p_post_id: id,
+        p_fee_amount: fee,
+        p_commission_rate: rate
+      });
+
+      if (rpcError) {
+        alert("Erreur technique : " + rpcError.message);
+        window.location.reload();
+        return;
       }
-      return; // Block execution
-    }
 
-    // 2. Deduct Commission & Confirm
-    if (confirm(`Accepter cette mission ?\n\nUne commission de ${commission} FCFA (10%) sera prélevée sur votre portefeuille.`)) {
-      setProviderBalance(prev => prev - commission);
+      // @ts-ignore
+      if (result && result.success === false) {
+        // @ts-ignore
+        alert("Echec : " + result.message);
+        window.location.reload();
+        return;
+      }
 
-      // 3. Update Status (Optimistic + Backend)
-      setAds(currentAds => currentAds.map(ad =>
-        ad.id === id ? { ...ad, status: 'accepted' } : ad
-      ));
-
-      // Real Backend Update: Mark as 'taken' (Suspended)
-      // This effectively hides it from other users who filter by 'available'
-      const { error } = await supabase
-        .from('posts')
-        .update({ status: 'taken', accepted_by: currentUserId || 'legacy_user' })
-        .eq('id', id);
-
-      if (error) console.error("Error suspending post:", error);
+      alert("✅ Mission acceptée ! Le client a été notifié.");
     }
   };
 

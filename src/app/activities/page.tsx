@@ -25,7 +25,7 @@ export default function ActivitiesPage() {
 
             const { data, error } = await supabase
                 .from('posts')
-                .select('*')
+                .select('*, profiles:accepted_by(full_name, rating, reviews_count)') // Fetch candidate profile
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
 
@@ -45,19 +45,39 @@ export default function ActivitiesPage() {
         }
     };
 
+    // ADVERTISER ACTIONS: VALIDATION FLOW
+    const handleApproveCandidate = async (postId: number, candidateName: string) => {
+        if (confirm(`Valider le prestataire ${candidateName} ?\n\nCela va confirmer la mission et déclencher le paiement de sa commission.`)) {
+            const { data, error } = await supabase.rpc('approve_mission', { p_post_id: postId });
+
+            if (error) {
+                alert("Erreur : " + error.message);
+            } else {
+                // @ts-ignore
+                if (data && data.success === false) { alert("Echec: " + data.message); return; }
+
+                alert(`✅ Prestataire validé ! La mission commence.`);
+                // Force refresh
+                window.location.reload();
+            }
+        }
+    };
+
+    const handleRejectCandidate = async (postId: number) => {
+        if (confirm("Refuser cette candidature ?\nL'annonce sera remise en ligne pour d'autres prestataires.")) {
+            const { error } = await supabase.rpc('reject_mission', { p_post_id: postId });
+            if (!error) {
+                alert("Candidature refusée.");
+                window.location.reload();
+            }
+        }
+    };
+
     const handleRefuse = async (id: number, providerId: string, price: number) => {
-        if (confirm("Refuser ce prestataire ?\n\nIl sera notifié et sa commission lui sera remboursée.")) {
-            // 1. Refund Logic (Simulation or Real DB calls)
-            // In a real app, we would increment the provider's wallet balance here.
-            // await supabase.rpc('increment_balance', { user_id: providerId, amount: Math.ceil(price * 0.10) });
-
-            // 2. Reset Post
+        // Implementation for post-acceptance refusal (Refund logic) - keeping existing logic scaffold
+        if (confirm("Annuler ce prestataire ?")) {
             await supabase.from('posts').update({ status: 'available', accepted_by: null }).eq('id', id);
-
-            // 3. UI Update
             setActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'available', accepted_by: null } : a));
-
-            alert(`Prestataire refusé. La commission (${Math.ceil(price * 0.10)} FCFA) a été restituée.`);
         }
     };
 
@@ -68,24 +88,16 @@ export default function ActivitiesPage() {
 
     const handleRatingSubmit = async (rating: number, comment: string) => {
         if (ratingTarget) {
-            // Here we would ideally save the rating to a ratings table
             console.log(`Rating ${rating} for ${ratingTarget.id}`);
-
-            // Delete/Archive the post
             await supabase.from('posts').delete().eq('id', ratingTarget.id);
             setActivities(prev => prev.filter(a => a.id !== ratingTarget.id));
-
             setIsRatingModalOpen(false);
             setRatingTarget(null);
             alert("Merci ! Mission terminée et notée.");
         }
     };
 
-    const ongoing = activities.filter(a => a.status === 'available' || a.status === 'accepted' || a.status === 'taken');
-    // For specific requirement: 'available' = In Feed (but hidden for me), 'taken' = Accepted by provider
-
-    // Note: History logic assumes we keep deleted posts somewhere, but currently 'Complete' DELETES them (as per requirement point 3). 
-    // So History might be empty unless we have a separate 'archieved_posts' table. For now, it shows what's in local state or nothing.
+    const ongoing = activities.filter(a => a.status !== 'completed'); // Show all active
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '80px', display: 'flex', flexDirection: 'column' }}>
@@ -95,38 +107,25 @@ export default function ActivitiesPage() {
                 <button onClick={() => router.back()} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
                     <ArrowLeft size={24} />
                 </button>
-                <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Mes Activités (Dashboard)</h1>
+                <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Mes Annonces (Dashboard)</h1>
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', padding: '0.5rem', margin: '1rem', backgroundColor: '#E2E8F0', borderRadius: '12px' }}>
-                <button
-                    onClick={() => setActiveTab('ongoing')}
-                    style={{
-                        flex: 1, padding: '0.75rem', borderRadius: '8px', border: 'none',
-                        backgroundColor: activeTab === 'ongoing' ? 'white' : 'transparent',
-                        fontWeight: 600, color: activeTab === 'ongoing' ? '#0F172A' : '#64748B',
-                        boxShadow: activeTab === 'ongoing' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                        transition: 'all 0.2s', cursor: 'pointer'
-                    }}
-                >
-                    En cours ({ongoing.length})
-                </button>
-            </div>
-
-            <div style={{ padding: '0 1rem', flex: 1 }}>
+            <div style={{ padding: '1rem', flex: 1 }}>
                 {loading ? <p style={{ textAlign: 'center', marginTop: '2rem' }}>Chargement...</p> : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {ongoing.length === 0 && <p style={{ textAlign: 'center', color: '#94A3B8', marginTop: '2rem' }}>Aucune activité.</p>}
+                        {ongoing.length === 0 && <p style={{ textAlign: 'center', color: '#94A3B8', marginTop: '2rem' }}>Aucune annonce active.</p>}
 
                         {ongoing.map(activity => (
-                            <div key={activity.id} style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                            <div key={activity.id} style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #E2E8F0', borderLeft: activity.status === 'pending_approval' ? '4px solid #F59E0B' : '4px solid #E2E8F0' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                     <div>
                                         <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{activity.title}</div>
-                                        <div style={{ fontSize: '0.85rem', color: activity.status === 'taken' || activity.status === 'accepted' ? '#10B981' : '#F59E0B', fontWeight: 500 }}>
-                                            {activity.status === 'taken' || activity.status === 'accepted' ? '✅ Accepté (En cours)' : '⏳ En recherche...'}
-                                        </div>
+
+                                        {/* STATUS BADGES */}
+                                        {activity.status === 'available' && <div style={{ fontSize: '0.85rem', color: '#64748B' }}>⏳ En ligne (Recherche...)</div>}
+                                        {activity.status === 'pending_approval' && <div style={{ fontSize: '0.85rem', color: '#D97706', fontWeight: 700 }}>⚠️ 1 Candidature en attente !</div>}
+                                        {activity.status === 'taken' && <div style={{ fontSize: '0.85rem', color: '#059669', fontWeight: 700 }}>✅ En cours (Prestataire validé)</div>}
+
                                     </div>
                                     <div style={{ fontSize: '1.25rem' }}>
                                         {activity.price ? `${activity.price} FCFA` : 'Sur devis'}
@@ -134,54 +133,44 @@ export default function ActivitiesPage() {
                                 </div>
 
                                 <div style={{ fontSize: '0.85rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                    <Eye size={16} /> {Math.floor(Math.random() * 50) + 1} Vues
-                                    <span style={{ margin: '0 0.5rem' }}>•</span>
                                     <MapPin size={14} /> {activity.location || 'Dakar'}
                                 </div>
 
-                                {/* ACTION BUTTONS */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {/* Edit / Check Logic */}
-                                    {(activity.status === 'taken' || activity.status === 'accepted') ? (
-                                        <div style={{ backgroundColor: '#F0F9FF', padding: '1rem', borderRadius: '8px', marginBottom: '0.5rem', border: '1px solid #BAE6FD' }}>
-                                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
-                                                <div style={{ width: '50px', height: '50px', backgroundColor: '#E0F2FE', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <User size={24} color="#0284C7" />
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontWeight: 600 }}>Prestataire accepté</div>
-                                                    <div style={{ fontSize: '0.85rem', color: '#64748B' }}>Modou Diop (Simulé)</div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', color: '#F59E0B' }}>
-                                                        <Star size={12} fill="#F59E0B" /> 4.8/5
-                                                    </div>
-                                                </div>
+                                {/* CANDIDATE APPROVAL UI */}
+                                {activity.status === 'pending_approval' && activity.profiles && (
+                                    <div style={{ backgroundColor: '#FFFBEB', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #FCD34D' }}>
+                                        <div style={{ fontWeight: 600, marginBottom: '0.5rem', color: '#B45309' }}>Candidat :</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                            <div style={{ width: '40px', height: '40px', backgroundColor: '#FDE68A', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                                                {activity.profiles.full_name?.charAt(0) || 'P'}
                                             </div>
+                                            <div>
+                                                <div style={{ fontWeight: 600 }}>{activity.profiles.full_name || 'Prestataire'}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#B45309' }}>⭐ {activity.profiles.rating || '5.0'} ({activity.profiles.reviews_count || 0} avis)</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <Button fullWidth onClick={() => handleApproveCandidate(activity.id, activity.profiles?.full_name)} style={{ backgroundColor: '#059669', color: 'white' }}>
+                                                ✅ Valider
+                                            </Button>
+                                            <Button fullWidth onClick={() => handleRejectCandidate(activity.id)} variant="outline" style={{ borderColor: '#EF4444', color: '#EF4444' }}>
+                                                ❌ Refuser
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
 
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                                <Button fullWidth onClick={() => router.push(`/tracking?id=${activity.id}`)} style={{ backgroundColor: '#2563EB', fontSize: '0.8rem' }}>
-                                                    Locations & Détails
-                                                </Button>
-                                                <Button fullWidth onClick={() => handleRefuse(activity.id, activity.accepted_by, activity.price)} variant="outline" style={{ borderColor: '#EF4444', color: '#EF4444', fontSize: '0.8rem' }}>
-                                                    Refuser
-                                                </Button>
-                                            </div>
-                                            <div style={{ marginTop: '0.5rem' }}>
-                                                <Button fullWidth onClick={() => handleComplete(activity.id, activity.accepted_by)} style={{ backgroundColor: '#10B981', color: 'white' }}>
-                                                    ✅ Valider & Terminer
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <Button fullWidth variant="outline" onClick={() => alert("Fonction modifier bientôt disponible")}>
-                                                <Edit size={16} style={{ marginRight: '0.5rem' }} /> Modifier
-                                            </Button>
-                                            <Button fullWidth onClick={() => handleCancel(activity.id)} style={{ backgroundColor: '#EF4444', color: 'white' }}>
-                                                <XCircle size={16} style={{ marginRight: '0.5rem' }} /> Annuler
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
+                                {/* Standard Actions */}
+                                {activity.status === 'taken' && (
+                                    <Button fullWidth onClick={() => handleComplete(activity.id, "")} style={{ backgroundColor: '#10B981', color: 'white' }}>
+                                        ✅ Travail Terminé
+                                    </Button>
+                                )}
+                                {activity.status === 'available' && (
+                                    <Button fullWidth onClick={() => handleCancel(activity.id)} style={{ backgroundColor: '#EF4444', color: 'white' }}>
+                                        <XCircle size={16} style={{ marginRight: '0.5rem' }} /> Supprimer L'annonce
+                                    </Button>
+                                )}
                             </div>
                         ))}
                     </div>
