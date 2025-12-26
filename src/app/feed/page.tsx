@@ -138,8 +138,8 @@ export default function FeedPage() {
 
             // Call the Apply Function
             const { data: result, error: rpcError } = await supabase.rpc('apply_for_mission', {
-                p_user_id: userId,
-                p_post_id: id
+                p_post_id: id,
+                p_user_id: userId
             });
 
             if (rpcError) {

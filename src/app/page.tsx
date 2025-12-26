@@ -235,8 +235,8 @@ export default function Home() {
 
       // Call the Apply Function
       const { data: result, error: rpcError } = await supabase.rpc('apply_for_mission', {
-        p_user_id: currentUserId,
-        p_post_id: id
+        p_post_id: id,
+        p_user_id: currentUserId
       });
 
       if (rpcError) {
