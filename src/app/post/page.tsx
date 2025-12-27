@@ -7,6 +7,7 @@ import { ArrowLeft, MapPin, Phone, Camera, Image as ImageIcon, AlertTriangle } f
 import Link from 'next/link';
 import { AudioRecorder } from '@/components/AudioRecorder';
 import { supabase } from '@/lib/supabase';
+import { sendPushNotification } from '@/app/actions/notifications';
 
 const SERVICES = [
     'Plomberie', 'Électricité', 'Mécanique', 'Cuisine',
@@ -165,6 +166,41 @@ export default function PostPage() {
                     user_id: user.id,
                     audio_url: publicAudioUrl,
                 });
+            } else {
+                // --- GEO ALERTS LOGIC (Success Path) ---
+                // Fire and forget - don't block UI
+                (async () => {
+                    try {
+                        console.log("📍 Triggering Geo-Alerts...");
+
+                        // 1. Find neighbors
+                        const { data: neighbors } = await supabase.rpc('get_users_nearby', {
+                            target_lat: location.lat,
+                            target_lng: location.lng,
+                            radius_km: 3.0 // 3km radius
+                        });
+
+                        if (neighbors && neighbors.length > 0) {
+                            // 2. Filter out self
+                            const targets = neighbors.filter((n: any) => n.user_id !== user.id);
+                            console.log(`📡 Found ${targets.length} neighbors to alert.`);
+
+                            // 3. Send Pushes
+                            const notifPromises = targets.map((target: any) =>
+                                sendPushNotification(
+                                    target.user_id,
+                                    "📍 Nouvelle mission à proximité !",
+                                    `Une demande "${finalCategory}" vient d'être publiée à ${target.distance_km.toFixed(1)} km de vous.`,
+                                    "/feed"
+                                )
+                            );
+
+                            await Promise.all(notifPromises);
+                        }
+                    } catch (err) {
+                        console.error("Geo-Alert Error:", err);
+                    }
+                })();
             }
 
             alert("✅ Annonce publiée avec succès !");

@@ -10,6 +10,32 @@ export function TopBar() {
     const router = useRouter();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+    // --- Location Sync ---
+    React.useEffect(() => {
+        const syncLocation = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const { latitude, longitude } = position.coords;
+
+                    // Optimistic update to DB (Fire & Forget)
+                    await supabase.from('profiles').update({
+                        last_lat: latitude,
+                        last_lng: longitude,
+                        last_seen_at: new Date().toISOString()
+                    }).eq('id', user.id);
+                }, (error) => {
+                    console.log("Loc error", error); // Silent fail
+                }, { enableHighAccuracy: false, timeout: 5000 });
+            }
+        };
+
+        // Sync on mount
+        syncLocation();
+    }, []);
+
     return (
         <div style={{
             position: 'absolute',
