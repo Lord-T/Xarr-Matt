@@ -106,7 +106,8 @@ export default function FeedPage() {
                         phoneNumber: p.contact_phone,
                         audioUrl: p.audio_url,
                         user_id: p.user_id,
-                        rawPrice: p.rawPrice // Maps to "rawPrice" from RPC
+                        rawPrice: p.rawPrice, // Maps to "rawPrice" from RPC
+                        isUrgent: p.is_urgent // New Urgency Mapped
                     };
                 });
                 setAds(formattedAds);

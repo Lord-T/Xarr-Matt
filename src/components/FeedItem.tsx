@@ -21,6 +21,7 @@ export interface FeedItemProps {
     phoneNumber?: string; // New field for contact
     audioUrl?: string; // Voice note URL
     rawPrice?: number; // Raw numeric price for calculation
+    isUrgent?: boolean; // New Urgency Flag
 }
 
 interface FeedItemComponentProps {
@@ -55,10 +56,38 @@ export function FeedItem({ item, currentUserId, onAccept, onComplete, onEdit, on
         }
     };
 
+    // Style Logic for Urgency
+    const borderStyle = item.status === 'accepted'
+        ? '2px solid var(--primary)'
+        : item.isUrgent
+            ? '2px solid #EF4444' // Red Border for Urgency
+            : '1px solid var(--border)';
+
+    const bgStyle = item.status === 'accepted'
+        ? '#FFF7ED'
+        : item.isUrgent
+            ? '#FEF2F2' // Light Red BG for Urgency Header
+            : 'transparent';
+
     return (
-        <div className="card" style={{ marginBottom: '1rem', padding: '0', overflow: 'hidden', border: item.status === 'accepted' ? '2px solid var(--primary)' : '1px solid var(--border)' }}>
+        <div className="card" style={{ marginBottom: '1rem', padding: '0', overflow: 'hidden', border: borderStyle, position: 'relative' }}>
+
+            {/* Urgency Badge */}
+            {item.isUrgent && item.status === 'available' && (
+                <div style={{
+                    position: 'absolute', top: 0, right: 0,
+                    backgroundColor: '#EF4444', color: 'white',
+                    fontSize: '0.7rem', fontWeight: 'bold',
+                    padding: '2px 8px',
+                    borderBottomLeftRadius: '8px',
+                    zIndex: 1
+                }}>
+                    ⚡ URGENCE (+20%)
+                </div>
+            )}
+
             {/* Header: Author & Meta */}
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: item.status === 'accepted' ? '#FFF7ED' : 'transparent' }}>
+            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: bgStyle }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#64748B' }}>
                         {item.author.charAt(0)}
@@ -99,8 +128,8 @@ export function FeedItem({ item, currentUserId, onAccept, onComplete, onEdit, on
                 <p style={{ marginBottom: '1rem', lineHeight: 1.5 }}>
                     {item.description}
                 </p>
-                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    Budget: {item.price}
+                <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: item.isUrgent ? '#B91C1C' : 'inherit' }}>
+                    Budget: {item.price} {item.isUrgent && <span style={{ fontSize: '0.8rem' }}>⚡</span>}
                 </div>
 
                 {/* Price Suggestion for Author */}
@@ -151,8 +180,9 @@ export function FeedItem({ item, currentUserId, onAccept, onComplete, onEdit, on
                             <Button variant="outline" fullWidth style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                                 <MessageCircle size={18} style={{ marginRight: '0.5rem' }} /> Message
                             </Button>
-                            <Button fullWidth onClick={() => onAccept(item.id)}>
-                                <CheckCircle size={18} style={{ marginRight: '0.5rem' }} /> Accepter
+                            <Button fullWidth onClick={() => onAccept(item.id)}
+                                style={{ backgroundColor: item.isUrgent ? '#EF4444' : 'var(--primary)' }}>
+                                <CheckCircle size={18} style={{ marginRight: '0.5rem' }} /> {item.isUrgent ? 'Sauver la mise !' : 'Accepter'}
                             </Button>
                         </div>
                     ) : (

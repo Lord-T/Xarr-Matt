@@ -33,6 +33,8 @@ export default function PostPage() {
         phone: ''
     });
 
+    const [isUrgent, setIsUrgent] = useState(false); // New Urgency State
+
     // 1. Force High Accuracy Geolocation on Mount
     useEffect(() => {
         if (!navigator.geolocation) {
@@ -140,27 +142,35 @@ export default function PostPage() {
                 publicPhotoUrl = publicUrlData.publicUrl;
             }
 
-            // 3. Insert Post with REAL Coordinates
+            // SURGE PRICE LOGIC
+            let finalPrice = formData.budget ? parseFloat(formData.budget) : null;
+            if (isUrgent && finalPrice) {
+                finalPrice = Math.floor(finalPrice * 1.20); // +20%
+            }
+
+            // 3. Insert Post with REAL Coordinates AND Urgency
             const { error } = await supabase.from('posts').insert({
                 title: finalCategory,
                 description: formData.description,
-                price: formData.budget ? parseFloat(formData.budget) : null,
+                price: finalPrice, // Surcharged Price
+                rawPrice: finalPrice, // Logic uses rawPrice
                 location: "Position GPS Exacte",
-                lat: location.lat, // New field (ensure DB has these or use 'location' text for now if schema strict)
-                lng: location.lng, // New field 
+                lat: location.lat,
+                lng: location.lng,
                 contact_phone: formData.phone,
                 user_id: user.id,
                 audio_url: publicAudioUrl,
-                // photo_url: publicPhotoUrl // Note: Ensure DB column exists or verify requirement. Assuming audio was the main one.
+                is_urgent: isUrgent, // Save the flag
+                // photo_url: publicPhotoUrl 
             });
 
             if (error) {
-                // Fallback if lat/lng columns don't exist yet, save in location text
-                console.warn("Retrying with location text only if lat/lng fail...");
+                // Fallback (Legacy)
+                console.warn("Retrying (Legacy Mode)...", error);
                 await supabase.from('posts').insert({
                     title: finalCategory,
                     description: formData.description,
-                    price: formData.budget ? parseFloat(formData.budget) : null,
+                    price: finalPrice,
                     location: `${location.lat},${location.lng}`, // Save coords in text
                     contact_phone: formData.phone,
                     user_id: user.id,
@@ -168,7 +178,6 @@ export default function PostPage() {
                 });
             } else {
                 // --- GEO ALERTS LOGIC (Success Path) ---
-                // Fire and forget - don't block UI
                 (async () => {
                     try {
                         console.log("📍 Triggering Geo-Alerts...");
@@ -189,8 +198,10 @@ export default function PostPage() {
                             const notifPromises = targets.map((target: any) =>
                                 sendPushNotification(
                                     target.user_id,
-                                    "📍 Nouvelle mission à proximité !",
-                                    `Une demande "${finalCategory}" vient d'être publiée à ${target.distance_km.toFixed(1)} km de vous.`,
+                                    isUrgent ? "🚨 URGENCE À PROXIMITÉ !" : "📍 Nouvelle mission à proximité !",
+                                    isUrgent
+                                        ? `Une urgence "${finalCategory}" (+20%) vient d'être signalée à ${target.distance_km.toFixed(1)} km !`
+                                        : `Une demande "${finalCategory}" vient d'être publiée à ${target.distance_km.toFixed(1)} km de vous.`,
                                     "/feed"
                                 )
                             );
@@ -203,7 +214,7 @@ export default function PostPage() {
                 })();
             }
 
-            alert("✅ Annonce publiée avec succès !");
+            alert(isUrgent ? "🚨 Annonce Urgente publiée !" : "✅ Annonce publiée avec succès !");
             router.push('/');
 
         } catch (err: any) {
@@ -352,6 +363,37 @@ export default function PostPage() {
                         onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                         style={{ width: '100%' }}
                     />
+                </div>
+
+                {/* Urgency Toggle */}
+                <div style={{
+                    padding: '1rem',
+                    backgroundColor: isUrgent ? '#FEF2F2' : 'white',
+                    border: isUrgent ? '2px solid #EF4444' : '1px solid var(--border)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    transition: 'all 0.2s',
+                    cursor: 'pointer'
+                }} onClick={() => setIsUrgent(!isUrgent)}>
+                    <div style={{
+                        width: '24px', height: '24px',
+                        border: isUrgent ? 'none' : '2px solid var(--muted)',
+                        backgroundColor: isUrgent ? '#EF4444' : 'transparent',
+                        borderRadius: '6px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                        {isUrgent && <AlertTriangle size={16} color="white" />}
+                    </div>
+                    <div>
+                        <span style={{ display: 'block', fontWeight: 'bold', color: isUrgent ? '#EF4444' : 'var(--foreground)' }}>
+                            URGENCE ABSOLUE (Surge) ⚡
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: isUrgent ? '#B91C1C' : 'var(--muted)' }}>
+                            Le prix sera majoré de 20% pour trouver un pro immédiatement.
+                        </span>
+                    </div>
                 </div>
 
                 <div style={{ marginTop: '1rem' }}>
