@@ -12,7 +12,7 @@ import { FinancesModule } from '@/components/admin/modules/FinancesModule';
 import { ContentModule } from '@/components/admin/modules/ContentModule';
 import { SystemModule } from '@/components/admin/modules/SystemModule';
 import { DashboardModule } from '@/components/admin/modules/DashboardModule';
-import { VerificationsModule } from '@/components/admin/modules/VerificationsModule';
+import { VerificationsModule } from '../../components/admin/modules/VerificationsModule';
 
 export default function AdminPage() {
     const router = useRouter();
