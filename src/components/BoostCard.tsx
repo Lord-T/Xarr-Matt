@@ -28,7 +28,7 @@ export function BoostCard() {
     }, []);
 
     const handleBuyBoost = async () => {
-        if (!confirm("Confirmez-vous l'achat du Booster (48h) pour 1000 FCFA ?")) return;
+        if (!confirm("Confirmez-vous l'achat du Booster (48h) pour 3000 FCFA ?")) return;
 
         setBuying(true);
         try {
