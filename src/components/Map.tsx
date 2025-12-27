@@ -46,19 +46,20 @@ export default function MapComponent() {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .eq('is_provider', true); // Only fetch Business Profiles
+                .eq('is_provider', true)
+                .order('boosted_until', { ascending: false, nullsFirst: false }); // Boosted first
 
             if (data) {
                 const mappedMarkers = data.map((profile: any) => ({
                     id: profile.id,
                     name: profile.business_name || profile.full_name || "Prestataire",
                     service: profile.service_category || "Service divers",
-                    // Fallback to random position around Dakar if no coords (temporary fix for demo)
                     lat: profile.latitude || (14.6928 + (Math.random() - 0.5) * 0.05),
                     lng: profile.longitude || (-17.4467 + (Math.random() - 0.5) * 0.05),
                     price: profile.bio ? (profile.bio.length > 30 ? profile.bio.substring(0, 30) + '...' : profile.bio) : "Voir profil",
                     phone: profile.phone,
-                    avatar_url: profile.avatar_url // Map avatar url
+                    avatar_url: profile.avatar_url,
+                    is_boosted: profile.boosted_until && new Date(profile.boosted_until) > new Date() // Check boost status
                 }));
                 setMarkers(mappedMarkers);
             }
@@ -126,6 +127,12 @@ export default function MapComponent() {
                 {filteredMarkers.map((marker) => {
                     // Custom Icon Logic
                     const hasAvatar = marker.avatar_url;
+                    const isBoosted = marker.is_boosted;
+
+                    const borderColor = isBoosted ? '#F59E0B' : 'white'; // Gold vs White
+                    const borderWidth = isBoosted ? '4px' : '2px';
+                    const zIndexOffset = isBoosted ? 1000 : 0; // Top z-index
+
                     const customIcon = hasAvatar ? L.divIcon({
                         className: 'custom-avatar-icon',
                         html: `<div style="
@@ -135,9 +142,12 @@ export default function MapComponent() {
                             background-size: cover;
                             background-position: center;
                             border-radius: 50%;
-                            border: 2px solid white;
+                            border: ${borderWidth} solid ${borderColor};
                             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                        "></div>`,
+                            ${isBoosted ? 'animation: pulse-gold 2s infinite;' : ''}
+                        "></div>
+                        ${isBoosted ? '<div style="position:absolute; top:-10px; right:-5px; font-size:16px;">👑</div>' : ''}
+                        `,
                         iconSize: [40, 40],
                         iconAnchor: [20, 20],
                         popupAnchor: [0, -20]

@@ -8,6 +8,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/lib/supabase';
 import { ShieldCheck } from 'lucide-react';
+import { BoostCard } from '@/components/BoostCard';
 
 // Sub-component for Admin Check to keep main clean
 function AdminAccessLink() {
@@ -65,6 +66,9 @@ export default function SettingsPage() {
             </div>
 
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+                {/* Booster / Monetization */}
+                <BoostCard />
 
                 {/* ID Verification Link */}
                 <Link href="/verification" style={{ textDecoration: 'none', color: 'inherit' }}>
