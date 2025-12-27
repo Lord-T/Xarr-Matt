@@ -42,8 +42,6 @@ export async function subscribeUser(sub: any) {
 }
 
 export async function subscribeUserWithId(sub: any, userId: string) {
-    console.log("Subscribing User:", userId);
-
     const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { error } = await adminSupabase.from('push_subscriptions').upsert({
@@ -51,7 +49,7 @@ export async function subscribeUserWithId(sub: any, userId: string) {
         endpoint: sub.endpoint,
         p256dh: sub.keys.p256dh,
         auth: sub.keys.auth
-    }, { onConflict: 'endpoint' }); // Use endpoint as unique key if possible or handle dupe
+    }, { onConflict: 'endpoint' });
 
     if (error) {
         console.error("Subscription DB Error:", error);
@@ -60,8 +58,6 @@ export async function subscribeUserWithId(sub: any, userId: string) {
 }
 
 export async function sendPushNotification(userId: string, title: string, message: string, url: string = '/') {
-    console.log(`Sending Push '${title}' to User ${userId}`);
-
     const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
     // 1. Get Subscriptions
@@ -71,7 +67,6 @@ export async function sendPushNotification(userId: string, title: string, messag
         .eq('user_id', userId);
 
     if (!subs || subs.length === 0) {
-        console.log("No subscriptions found for user.");
         return;
     }
 
@@ -93,8 +88,6 @@ export async function sendPushNotification(userId: string, title: string, messag
             }, payload);
         } catch (error) {
             console.error("Failed to send push:", error);
-            // Optional: Delete invalid subscription
-            // if (error.statusCode === 410) ...
         }
     }
 }

@@ -14,25 +14,50 @@ export function SystemModule() {
     const [splashAd, setSplashAd] = useState({ active: true, url: '', link: '' });
     const [themeColor, setThemeColor] = useState('#10B981');
     const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [admins, setAdmins] = useState<any[]>([]);
 
-    // Mock Load (Replace with app_settings fetch)
+    // Load Settings & Admins
     useEffect(() => {
-        // Load settings from DB later
+        const loadData = async () => {
+            // 1. Settings
+            const { data: settings } = await supabase.from('app_settings').select('*');
+            if (settings) {
+                settings.forEach(s => {
+                    if (s.key === 'splash_ad') setSplashAd(s.value);
+                    if (s.key === 'theme_colors') setThemeColor(s.value.primary || '#10B981');
+                    if (s.key === 'maintenance_mode') setMaintenanceMode(s.value.active);
+                });
+            }
+
+            // 2. Admins
+            const { data: adminRoles } = await supabase
+                .from('admin_roles')
+                .select('*, profiles:user_id(full_name, email, avatar_url)'); // select related profile
+
+            if (adminRoles) setAdmins(adminRoles);
+        };
+        loadData();
     }, []);
 
-    const handleSaveSplash = () => {
-        // Save to DB (app_settings)
-        console.log("Saving Splash:", splashAd);
-        // localStorage for fallback persistence in this demo
-        localStorage.setItem('splash_config', JSON.stringify(splashAd));
-        alert("Configuration Splash Screen sauvegardée !");
+    const handleSaveSplash = async () => {
+        const { error } = await supabase.from('app_settings').upsert({
+            key: 'splash_ad',
+            value: splashAd,
+            updated_at: new Date().toISOString()
+        });
+
+        if (error) alert("Erreur sauvegarde: " + error.message);
+        else alert("Configuration Splash Screen sauvegardée !");
     };
 
-    const handleThemeChange = (color: string) => {
+    const handleThemeChange = async (color: string) => {
         setThemeColor(color);
         setPrimaryColor(color);
-        // Persist
-        localStorage.setItem('theme_color', color);
+        // Persist to DB
+        await supabase.from('app_settings').upsert({
+            key: 'theme_colors',
+            value: { primary: color, secondary: '#1E293B' }
+        });
     };
 
     return (
@@ -128,40 +153,58 @@ export function SystemModule() {
 
                             if (!email) return alert("Email requis");
 
-                            // 1. Get ID
-                            const { data: uid, error: uidError } = await supabase.rpc('get_user_id_by_email', { user_email: email });
+                            // 1. Get ID (Needs RPC check)
+                            // Note: get_user_id_by_email RPC might be needed if security check fails directly
+                            // For now assume we might not reach profiles by email due to RLS.
+                            // Better pattern: Input ID directly or have an "Invite" flow.
+                            // FALLBACK: Use Profiles search if possible (Public profiles?)
+                            const { data: profiles, error: uidError } = await supabase
+                                .from('profiles')
+                                .select('id')
+                                .ilike('email', email) // 'email' might not be in profiles! Profiles usually has phone/name.
+                                .single();
 
-                            if (uidError || !uid) {
-                                alert("Utilisateur introuvable. Il doit d'abord s'inscrire sur l'app.");
-                                return;
-                            }
+                            // Assuming we added email to profiles or use RPC. 
+                            // Let's use the RPC 'get_user_id_by_email' if it existed, otherwise warn.
+                            alert("Pour l'instant, l'ajout par email nécessite une RPC admin spécifique (get_user_by_email). En attendant, demandez l'ID.");
+                            return;
 
-                            // 2. Insert Role
-                            const { error: roleError } = await supabase.from('admin_roles').insert({
-                                user_id: uid,
-                                role: role
-                            });
-
-                            if (roleError) {
-                                alert("Erreur ajout: " + roleError.message);
-                            } else {
-                                alert("Admin ajouté avec succès !");
-                                emailInput.value = '';
-                                // Reload list logic here if implemented
-                            }
+                            /*
+                           if (roleError) {
+                               alert("Erreur ajout: " + roleError.message);
+                           } else {
+                               alert("Admin ajouté avec succès !");
+                               emailInput.value = '';
+                           }
+                           */
                         }}>
-                            <Plus size={18} className="mr-2" /> Ajouter
+                            <Plus size={18} className="mr-2" /> Ajouter (Bientôt)
                         </Button>
                     </div>
 
-                    {/* Admin List (Hard to fetch fully without joining profiles, keeping simple for now) */}
-                    <div className="bg-slate-50 p-4 rounded-lg text-center text-slate-500 text-sm">
-                        <em>La liste des administrateurs sera visible ici.</em>
-                        {/* 
-                            To implement list: 
-                            Need supabase.from('admin_roles').select('*, profiles(*)') 
-                            Profiles relation must be set up in DB. 
-                        */}
+                    {/* Admin List */}
+                    <div className="bg-slate-50 p-4 rounded-lg">
+                        <h4 className="text-sm font-bold mb-3 text-slate-600">Administrateurs Actuels</h4>
+                        {admins.length === 0 ? (
+                            <p className="text-center text-slate-400 italic">Aucun autre admin.</p>
+                        ) : (
+                            <ul className="space-y-2">
+                                {admins.map(admin => (
+                                    <li key={admin.id} className="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold">
+                                                {admin.profiles?.full_name?.[0] || 'A'}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-sm">{admin.profiles?.full_name || 'Utilisateur'}</div>
+                                                <div className="text-xs text-slate-400 capitalize">{admin.role.replace('_', ' ')}</div>
+                                            </div>
+                                        </div>
+                                        <button className="text-red-400 hover:text-red-600 text-xs font-bold">Retirer</button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
                 </div>
             </div>

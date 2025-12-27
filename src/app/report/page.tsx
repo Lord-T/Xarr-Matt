@@ -8,10 +8,41 @@ import { ArrowLeft, AlertTriangle, ShieldAlert } from 'lucide-react';
 export default function ReportPage() {
     const router = useRouter();
     const [submitted, setSubmitted] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitted(true);
+        setLoading(true);
+
+        // Get Form Data
+        const form = e.target as HTMLFormElement;
+        const reason = (form.elements.namedItem('reason') as HTMLSelectElement).value;
+        const description = (form.elements.namedItem('description') as HTMLTextAreaElement).value;
+
+        // Get User
+        const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+
+        if (!user) {
+            alert("Veuillez vous connecter.");
+            router.push('/login');
+            return;
+        }
+
+        // Insert Report
+        const { error } = await import('@/lib/supabase').then(m => m.supabase.from('reports').insert({
+            reporter_id: user.id,
+            reason,
+            description,
+            status: 'pending'
+        }));
+
+        setLoading(false);
+
+        if (error) {
+            alert("Erreur: " + error.message);
+        } else {
+            setSubmitted(true);
+        }
     };
 
     if (submitted) {
@@ -46,7 +77,7 @@ export default function ReportPage() {
 
                 <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Motif du signalement</label>
-                    <select className="input" style={{ width: '100%', backgroundColor: 'white' }} required>
+                    <select name="reason" className="input" style={{ width: '100%', backgroundColor: 'white' }} required>
                         <option value="">Sélectionnez un motif...</option>
                         <option value="fake">Faux profil / Usurpation</option>
                         <option value="scam">Tentative d'arnaque</option>
@@ -59,6 +90,7 @@ export default function ReportPage() {
                 <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Description (Optionnel)</label>
                     <textarea
+                        name="description"
                         className="input"
                         rows={5}
                         placeholder="Donnez nous plus de détails..."

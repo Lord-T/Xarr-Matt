@@ -27,6 +27,32 @@ export default function FeedPage() {
     // Dynamic Settings
     const [commissionConfig, setCommissionConfig] = useState<{ rate: number, fixed_fallback: number }>({ rate: 10, fixed_fallback: 500 });
 
+    const [viewerLocation, setViewerLocation] = useState<{ lat: number, lng: number } | null>(null);
+
+    // Haversine Distance Helper
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Get Location
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setViewerLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                (err) => console.log("Loc Error", err),
+                { enableHighAccuracy: true }
+            );
+        }
+    }, []);
+
     // 1. Fetch Data on Mount
     useEffect(() => {
         const initData = async () => {
@@ -56,24 +82,31 @@ export default function FeedPage() {
 
             if (posts) {
                 // Map DB posts to UI format
-                const formattedAds = posts.map(p => ({
-                    id: p.id,
-                    author: p.profiles?.full_name || 'Anonyme',
-                    service: p.title, // Assuming title is category/service
-                    description: p.description,
-                    price: p.price ? p.price.toString() : 'Sur devis', // Ensure string
-                    distance: 2.5, // Mock distance for now (PostGIS todo)
-                    timestamp: new Date(p.created_at).toLocaleDateString(),
-                    locationName: p.location || 'Dakar',
-                    lat: p.lat || 14.692,
-                    lng: p.lng || -17.446,
-                    status: p.status,
-                    phoneNumber: p.contact_phone,
-                    audioUrl: p.audio_url,
-                    user_id: p.user_id,
-                    rawPrice: p.rawPrice // Use explicit numeric if available
-                }));
-                // @ts-ignore
+                const formattedAds = posts.map(p => {
+                    // Distance Calculation
+                    let dist = 0;
+                    if (viewerLocation && p.lat && p.lng) {
+                        dist = calculateDistance(viewerLocation.lat, viewerLocation.lng, p.lat, p.lng);
+                    }
+
+                    return {
+                        id: p.id,
+                        author: p.profiles?.full_name || 'Anonyme',
+                        service: p.title,
+                        description: p.description,
+                        price: p.price ? p.price.toString() : 'Sur devis',
+                        distance: parseFloat(dist.toFixed(1)), // REAL DISTANCE
+                        timestamp: new Date(p.created_at).toLocaleDateString(),
+                        locationName: p.location || 'Dakar',
+                        lat: p.lat || 14.692,
+                        lng: p.lng || -17.446,
+                        status: p.status,
+                        phoneNumber: p.contact_phone,
+                        audioUrl: p.audio_url,
+                        user_id: p.user_id,
+                        rawPrice: p.rawPrice
+                    };
+                });
                 setAds(formattedAds);
             }
             setLoading(false);
