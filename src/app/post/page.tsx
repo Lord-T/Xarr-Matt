@@ -112,13 +112,13 @@ export default function PostPage() {
             if (audioBlob) {
                 const fileName = `audio_${timestamp}_${user.id}.webm`;
                 const { error: uploadError } = await supabase.storage
-                    .from('posts-files')
+                    .from('mission_audios') // Correct bucket
                     .upload(fileName, audioBlob);
 
                 if (uploadError) throw uploadError;
 
                 const { data: publicUrlData } = supabase.storage
-                    .from('posts-files')
+                    .from('mission_audios')
                     .getPublicUrl(fileName);
                 publicAudioUrl = publicUrlData.publicUrl;
             }
