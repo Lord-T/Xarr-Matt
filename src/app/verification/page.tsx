@@ -1,224 +1,172 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, ShieldCheck, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import Link from 'next/link';
-import { ArrowLeft, Upload, CheckCircle, ShieldCheck, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { ImageUpload } from '@/components/ui/ImageUpload';
+import Link from 'next/link';
 
 export default function VerificationPage() {
-    const [step, setStep] = useState(1);
-    const [recto, setRecto] = useState<File | null>(null);
-    const [verso, setVerso] = useState<File | null>(null);
+    const router = useRouter();
+    const [loading, setLoading] = useState(true);
+    const [status, setStatus] = useState<'initial' | 'pending' | 'approved' | 'rejected'>('initial');
+    const [cniUrl, setCniUrl] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [user, setUser] = useState<any>(null);
 
-    const handleUpload = (e: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
-        if (e.target.files && e.target.files[0]) {
-            if (side === 'recto') setRecto(e.target.files[0]);
-            else setVerso(e.target.files[0]);
+    useEffect(() => {
+        checkStatus();
+    }, []);
+
+    const checkStatus = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            router.push('/login');
+            return;
         }
+        setUser(user);
+
+        // Check recent requests
+        const { data: requests } = await supabase
+            .from('verification_requests')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (requests && requests.length > 0) {
+            setStatus(requests[0].status);
+        }
+
+        // Also check profile directly
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_verified')
+            .eq('id', user.id)
+            .single();
+
+        if (profile?.is_verified) setStatus('approved');
+
+        setLoading(false);
     };
 
-    const [uploading, setUploading] = useState(false);
+    const handleSubmit = async () => {
+        if (!cniUrl) return alert("Veuillez ajouter une photo de votre pièce d'identité.");
+        setSubmitting(true);
 
-    // Import supabase locally or at top
-    // assuming import { supabase } from '@/lib/supabase'; is needed at top.
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setUploading(true);
-
-        try {
-            if (!recto || !verso) return;
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error("Non connecté");
-
-            const timestamp = Date.now();
-            // Secure Path: UserID/Type_Timestamp.ext
-            const rectoPath = `${user.id}/recto_${timestamp}.${recto.name.split('.').pop()}`;
-            const versoPath = `${user.id}/verso_${timestamp}.${verso.name.split('.').pop()}`;
-
-            // 1. Upload Recto to Secure Bucket
-            const { error: error1 } = await supabase.storage.from('verification_docs').upload(rectoPath, recto);
-            if (error1) throw error1;
-
-            // 2. Upload Verso
-            const { error: error2 } = await supabase.storage.from('verification_docs').upload(versoPath, verso);
-            if (error2) throw error2;
-
-            // 3. Persist Request in DB (For Admin Review)
-            const { error: dbError } = await supabase.from('verification_docs').insert({
+        const { error } = await supabase
+            .from('verification_requests')
+            .insert({
                 user_id: user.id,
-                recto_url: rectoPath,
-                verso_url: versoPath,
-                status: 'pending' // En attente de validation manuelle/IA
+                document_url: cniUrl,
+                status: 'pending'
             });
 
-            // If table doesn't exist yet (User didn't run SQL), fallback to Profile update
-            if (dbError) {
-                console.warn("Table verification_docs not found, updating profile instead.");
-                await supabase.from('profiles').update({
-                    is_verified: false, // Not yet
-                    verification_status: 'pending'
-                }).eq('id', user.id);
-            }
-
-            // Success UI
-            setStep(2);
-
-        } catch (error: any) {
-            console.error("Upload error:", error);
-            alert("Erreur d'envoi: " + (error.message || "Problème réseau"));
-        } finally {
-            setUploading(false);
+        if (error) {
+            alert("Erreur: " + error.message);
+        } else {
+            setStatus('pending');
+            alert("Demande envoyée ! L'administrateur va vérifier votre dossier.");
         }
+        setSubmitting(false);
     };
 
+    if (loading) return <div className="p-8 text-center text-gray-500">Chargement...</div>;
+
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '1rem', backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <Link href="/profile">
-                    <ArrowLeft size={24} />
+        <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '20px' }}>
+
+            {/* Header */}
+            <div style={{ padding: '1rem', backgroundColor: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <Link href="/profile/view">
+                    <button style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
+                        <ArrowLeft size={24} />
+                    </button>
                 </Link>
                 <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Vérification d'Identité</h1>
             </div>
 
-            <div className="container" style={{ padding: '2rem 1rem', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ padding: '1rem', maxWidth: '600px', margin: '0 auto' }}>
 
-                {step === 1 && (
-                    <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: '500px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <ShieldCheck size={64} color="var(--primary)" style={{ marginBottom: '1rem' }} />
-                            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Confiance Xarr-Matt</h2>
-                            <p style={{ color: 'var(--muted)' }}>
-                                Pour garantir la sécurité de tous, nous vérifions l'identité de chaque prestataire.
+                {status === 'approved' && (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                        <div style={{ width: '80px', height: '80px', backgroundColor: '#ECFDF5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                            <ShieldCheck size={48} color="#059669" />
+                        </div>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#059669', marginBottom: '0.5rem' }}>Compte Vérifié !</h2>
+                        <p style={{ color: '#64748B' }}>Votre identité a été confirmée. Vous possédez le badge de confiance.</p>
+                        <Link href="/feed">
+                            <Button fullWidth style={{ marginTop: '2rem', backgroundColor: '#059669', color: 'white' }}>Retour à l'accueil</Button>
+                        </Link>
+                    </div>
+                )}
+
+                {status === 'pending' && (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                        <div style={{ width: '80px', height: '80px', backgroundColor: '#FFF7ED', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                            <AlertCircle size={48} color="#EA580C" />
+                        </div>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#EA580C', marginBottom: '0.5rem' }}>Dossier en cours...</h2>
+                        <p style={{ color: '#64748B' }}>Nous analysons votre document. Vous recevrez une notification sous 24h.</p>
+                        <Button variant="outline" fullWidth style={{ marginTop: '2rem' }} onClick={() => router.back()}>Retour</Button>
+                    </div>
+                )}
+
+                {(status === 'initial' || status === 'rejected') && (
+                    <>
+                        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E2E8F0', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem' }}>Pourquoi vérifier son compte ?</h2>
+                            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#475569' }}>
+                                    <CheckCircle size={20} color="#10B981" />
+                                    Badge "Vérifié" visible par les clients
+                                </li>
+                                <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#475569' }}>
+                                    <CheckCircle size={20} color="#10B981" />
+                                    +50% de chances d'être choisi
+                                </li>
+                                <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#475569' }}>
+                                    <CheckCircle size={20} color="#10B981" />
+                                    Accès aux missions Premium
+                                </li>
+                            </ul>
+                        </div>
+
+                        {status === 'rejected' && (
+                            <div style={{ backgroundColor: '#FEF2F2', padding: '1rem', borderRadius: '8px', color: '#B91C1C', marginBottom: '1.5rem', border: '1px solid #FECACA' }}>
+                                <strong>Dossier Échoué :</strong> Votre document n'était pas lisible. Veuillez réessayer.
+                            </div>
+                        )}
+
+                        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                            <h3 style={{ fontWeight: 600, marginBottom: '1rem' }}>Télécharger une pièce d'identité</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#64748B', marginBottom: '1.5rem' }}>
+                                Carte Nationale d'Identité (CNI) ou Passeport en cours de validité. Format visible.
                             </p>
-                        </div>
 
-                        <div className="card">
-                            <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>1. Recto de la CNI</h3>
-                            <div
-                                style={{
-                                    border: '2px dashed var(--border)',
-                                    borderRadius: 'var(--radius)',
-                                    padding: '2rem',
-                                    textAlign: 'center',
-                                    backgroundColor: recto ? '#F0FDF4' : 'transparent',
-                                    borderColor: recto ? 'var(--success)' : 'var(--border)'
-                                }}
-                            >
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                    {recto ? (
-                                        <>
-                                            <CheckCircle color="var(--success)" size={32} />
-                                            <span style={{ fontWeight: 500 }}>Fichier ajouté</span>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{recto.name}</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload color="var(--primary)" size={32} />
-                                            <span style={{ fontWeight: 500 }}>Photo Recto</span>
-                                        </>
-                                    )}
-                                </div>
+                            <ImageUpload
+                                bucket="verification_docs"
+                                label="Photo de la pièce (Recto)"
+                                onUpload={setCniUrl}
+                            />
 
-                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                                    <label style={{
-                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
-                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'white'
-                                    }}>
-                                        <Upload size={18} /> Galerie
-                                        <input type="file" style={{ display: 'none' }} accept="image/*" onChange={(e) => handleUpload(e, 'recto')} />
-                                    </label>
-
-                                    <label style={{
-                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
-                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'var(--primary)', color: 'white'
-                                    }}>
-                                        <Camera size={18} /> Camera
-                                        <input type="file" style={{ display: 'none' }} accept="image/*" capture="environment" onChange={(e) => handleUpload(e, 'recto')} />
-                                    </label>
-                                </div>
+                            <div style={{ marginTop: '2rem' }}>
+                                <Button
+                                    fullWidth
+                                    onClick={handleSubmit}
+                                    disabled={submitting || !cniUrl}
+                                    style={{ backgroundColor: '#2563EB', color: 'white', opacity: (submitting || !cniUrl) ? 0.7 : 1 }}
+                                >
+                                    {submitting ? 'Envoi en cours...' : 'Envoyer pour examen'}
+                                </Button>
                             </div>
                         </div>
+                    </>
+                )}
 
-                        <div className="card">
-                            <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>2. Verso de la CNI</h3>
-                            <div
-                                style={{
-                                    border: '2px dashed var(--border)',
-                                    borderRadius: 'var(--radius)',
-                                    padding: '2rem',
-                                    textAlign: 'center',
-                                    backgroundColor: verso ? '#F0FDF4' : 'transparent',
-                                    borderColor: verso ? 'var(--success)' : 'var(--border)'
-                                }}
-                            >
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                    {verso ? (
-                                        <>
-                                            <CheckCircle color="var(--success)" size={32} />
-                                            <span style={{ fontWeight: 500 }}>Fichier ajouté</span>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{verso.name}</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload color="var(--primary)" size={32} />
-                                            <span style={{ fontWeight: 500 }}>Photo Verso</span>
-                                        </>
-                                    )}
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                                    <label style={{
-                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
-                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'white'
-                                    }}>
-                                        <Upload size={18} /> Galerie
-                                        <input type="file" style={{ display: 'none' }} accept="image/*" onChange={(e) => handleUpload(e, 'verso')} />
-                                    </label>
-
-                                    <label style={{
-                                        padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px',
-                                        display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', backgroundColor: 'var(--primary)', color: 'white'
-                                    }}>
-                                        <Camera size={18} /> Camera
-                                        <input type="file" style={{ display: 'none' }} accept="image/*" capture="environment" onChange={(e) => handleUpload(e, 'verso')} />
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <Button fullWidth size="lg" disabled={!recto || !verso}>
-                            Envoyer pour validation
-                        </Button>
-                    </form>
-                )
-                }
-
-                {
-                    step === 2 && (
-                        <div style={{ textAlign: 'center', maxWidth: '400px', marginTop: '3rem' }}>
-                            <div style={{
-                                width: '80px', height: '80px',
-                                backgroundColor: '#DCFCE7', borderRadius: '50%',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                margin: '0 auto 1.5rem auto'
-                            }}>
-                                <CheckCircle size={48} color="var(--success)" />
-                            </div>
-                            <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Documents Reçus !</h2>
-                            <p style={{ color: 'var(--muted)', marginBottom: '2rem', lineHeight: 1.5 }}>
-                                Notre équipe va vérifier vos documents sous 24h.
-                                Vous recevrez une notification SMS une fois votre profil certifié.
-                            </p>
-                            <Link href="/profile">
-                                <Button variant="outline">Retour au profil</Button>
-                            </Link>
-                        </div>
-                    )
-                }
-
-            </div >
-        </div >
+            </div>
+        </div>
     );
 }
