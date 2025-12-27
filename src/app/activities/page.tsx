@@ -6,6 +6,7 @@ import { ArrowLeft, MapPin, XCircle, RotateCcw, Eye, Edit, User, Phone, Star, Na
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
+import { sendPushNotification } from '@/app/actions/notifications';
 import { RatingModal } from '@/components/ui/RatingModal';
 
 export default function ActivitiesPage() {
@@ -117,10 +118,15 @@ export default function ActivitiesPage() {
         }
     };
 
-    const handleApproveCandidate = async (postId: number, candidateName: string) => {
+    const handleApproveCandidate = async (postId: number, candidateName: string, providerId: string) => {
         if (confirm(`Valider le prestataire ${candidateName} ?`)) {
             const { data, error } = await supabase.rpc('approve_mission', { p_post_id: postId });
-            if (!error) window.location.reload();
+            if (!error) {
+                // 🔔 Notify Provider
+                sendPushNotification(providerId, "Candidature Validée ! ✅", "Le client a validé votre mission. Vous pouvez démarrer le trajet !", "/activities");
+
+                window.location.reload();
+            }
         }
     };
 
@@ -201,7 +207,7 @@ export default function ActivitiesPage() {
                                     <div className="bg-orange-50 p-3 rounded-lg mb-3 border border-orange-100">
                                         <div className="font-bold mb-2">Candidat : {activity.profiles.full_name}</div>
                                         <div className="flex gap-2">
-                                            <Button size="sm" onClick={() => handleApproveCandidate(activity.id, activity.profiles.full_name)}>Valider</Button>
+                                            <Button size="sm" onClick={() => handleApproveCandidate(activity.id, activity.profiles.full_name, activity.accepted_by)}>Valider</Button>
                                             <Button size="sm" variant="outline" onClick={() => handleRejectCandidate(activity.id)}>Refuser</Button>
                                         </div>
                                     </div>

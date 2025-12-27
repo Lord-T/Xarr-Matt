@@ -10,6 +10,7 @@ import { TopBar } from '@/components/ui/TopBar';
 
 
 import { supabase } from '@/lib/supabase';
+import { sendPushNotification } from '@/app/actions/notifications';
 
 // Keep INITIAL_ADS as a fallback
 const INITIAL_ADS: FeedItemProps[] = [];
@@ -254,6 +255,10 @@ export default function Home() {
       }
 
       alert("✅ Candidature envoyée ! Attendez la validation du client.");
+
+      // 🔔 Notify Client
+      // We don't await this to keep UI fast
+      sendPushNotification(adToAccept.user_id, "Nouvelle Candidature 🙋‍♂️", `Un prestataire a postulé pour "${adToAccept.service}" !`, "/activities");
     }
   };
 
