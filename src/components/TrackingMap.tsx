@@ -41,12 +41,23 @@ function ChangeView({ center }: { center: [number, number] }) {
 }
 
 interface TrackingMapProps {
-    userLocation: [number, number];
-    destination: [number, number];
+    userLocation: [number, number];   // Me (Client)
+    destination: [number, number];    // Job Site
+    providerLocation?: [number, number]; // Moving Provider
 }
 
-export function TrackingMap({ userLocation, destination }: TrackingMapProps) {
-    const center = userLocation;
+const ProviderIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png', // Orange for Provider
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+export function TrackingMap({ userLocation, destination, providerLocation }: TrackingMapProps) {
+    // Center map on Provider if available, else User
+    const center = providerLocation || userLocation;
 
     return (
         <MapContainer center={center} zoom={15} style={{ height: '100%', width: '100%' }}>
@@ -54,20 +65,32 @@ export function TrackingMap({ userLocation, destination }: TrackingMapProps) {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            {/* Auto-Centering Effect */}
             <ChangeView center={center} />
 
-            {/* User Position */}
+            {/* User Position (Client) */}
             <Marker position={userLocation} icon={UserIcon}>
-                <Popup>Vous êtes ici (Prestataire)</Popup>
+                <Popup>Vous (Client)</Popup>
             </Marker>
 
-            {/* Destination */}
+            {/* Destination (Job Site) */}
             <Marker position={destination} icon={DestIcon}>
-                <Popup>Destination (Client)</Popup>
+                <Popup>Lieu de la mission</Popup>
             </Marker>
 
-            {/* Route Line */}
-            <Polyline positions={[userLocation, destination]} color="blue" dashArray="10, 10" />
+            {/* Moving Provider */}
+            {providerLocation && (
+                <Marker position={providerLocation} icon={ProviderIcon} zIndexOffset={1000}>
+                    <Popup>Prestataire en route 🏎️</Popup>
+                </Marker>
+            )}
+
+            {/* Route Guidelines */}
+            {providerLocation ? (
+                <Polyline positions={[providerLocation, destination]} color="orange" dashArray="5, 10" />
+            ) : (
+                <Polyline positions={[userLocation, destination]} color="blue" dashArray="5, 10" />
+            )}
         </MapContainer>
     );
 }

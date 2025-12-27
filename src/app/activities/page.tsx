@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { ArrowLeft, MapPin, XCircle, RotateCcw, Eye, Edit, User, Phone, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, XCircle, RotateCcw, Eye, Edit, User, Phone, Star, Navigation, StopCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
@@ -10,166 +10,255 @@ import { RatingModal } from '@/components/ui/RatingModal';
 
 export default function ActivitiesPage() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'ongoing' | 'history'>('ongoing');
-    const [activities, setActivities] = useState<any[]>([]);
+    const [viewMode, setViewMode] = useState<'client' | 'provider'>('client'); // 'client' = My Posts, 'provider' = My Missions
+
+    const [myPosts, setMyPosts] = useState<any[]>([]);
+    const [myMissions, setMyMissions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState<any>(null);
 
     const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
     const [ratingTarget, setRatingTarget] = useState<{ id: number, author: string } | null>(null);
 
-    // Fetch My Activities
+    // Tracking State
+    const [trackingPostId, setTrackingPostId] = useState<string | number | null>(null);
+    const watchIdRef = useRef<number | null>(null);
+
+    // Fetch Data
     useEffect(() => {
-        const fetchActivities = async () => {
+        const fetchData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) { setLoading(false); return; }
+            setCurrentUser(user);
 
-            const { data, error } = await supabase
+            // 1. Fetch Posts I Created (Client Mode)
+            const { data: postsData } = await supabase
                 .from('posts')
-                .select('*, profiles:accepted_by(full_name, rating, reviews_count)') // Fetch candidate profile
+                .select('*, profiles:accepted_by(full_name, rating, reviews_count)')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
 
-            if (data) setActivities(data);
+            if (postsData) setMyPosts(postsData);
+
+            // 2. Fetch Missions I Accepted (Provider Mode)
+            const { data: missionsData } = await supabase
+                .from('posts')
+                .select('*') // We might want client profile info here too
+                .eq('accepted_by', user.id)
+                .order('created_at', { ascending: false });
+
+            if (missionsData) setMyMissions(missionsData);
+
             setLoading(false);
         };
 
-        fetchActivities();
-        const interval = setInterval(fetchActivities, 5000); // Poll every 5s
+        fetchData();
+        const interval = setInterval(fetchData, 8000); // Poll refresh
         return () => clearInterval(interval);
     }, []);
 
+    // --- TRACKING LOGIC (PROVIDER) ---
+    const startTracking = (postId: string | number) => {
+        if (!navigator.geolocation) return alert("GPS non supporté");
+
+        setTrackingPostId(postId);
+
+        // Immediate update
+        navigator.geolocation.getCurrentPosition(pos => updateLocation(postId, pos));
+
+        // Watch
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => updateLocation(postId, pos),
+            (err) => console.error(err),
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+
+        alert("🛰️ Tracking activé ! Le client voit votre position.");
+    };
+
+    const stopTracking = async () => {
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
+        setTrackingPostId(null);
+        alert("🛑 Tracking arrêté.");
+    };
+
+    const updateLocation = async (postId: string | number, position: GeolocationPosition) => {
+        const { latitude, longitude } = position.coords;
+
+        // Upsert to tracking_sessions
+        // Note: 'post_id' is Unique Primary Key, so upsert works fine.
+        const { error } = await supabase.from('tracking_sessions').upsert({
+            post_id: postId,
+            provider_id: currentUser.id,
+            lat: latitude,
+            lng: longitude,
+            last_updated: new Date().toISOString()
+        });
+
+        if (error) console.error("Tracking Error:", error);
+    };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+        };
+    }, []);
+
+
+    // --- CLIENT ACTIONS ---
     const handleCancel = async (id: number) => {
         if (confirm("Voulez-vous vraiment annuler cette annonce ?")) {
             await supabase.from('posts').delete().eq('id', id);
-            setActivities(prev => prev.filter(a => a.id !== id));
+            setMyPosts(prev => prev.filter(a => a.id !== id));
         }
     };
 
-    // ADVERTISER ACTIONS: VALIDATION FLOW
     const handleApproveCandidate = async (postId: number, candidateName: string) => {
-        if (confirm(`Valider le prestataire ${candidateName} ?\n\nCela va confirmer la mission et déclencher le paiement de sa commission.`)) {
+        if (confirm(`Valider le prestataire ${candidateName} ?`)) {
             const { data, error } = await supabase.rpc('approve_mission', { p_post_id: postId });
-
-            if (error) {
-                alert("Erreur : " + error.message);
-            } else {
-                // @ts-ignore
-                if (data && data.success === false) { alert("Echec: " + data.message); return; }
-
-                alert(`✅ Prestataire validé ! La mission commence.`);
-                // Force refresh
-                window.location.reload();
-            }
+            if (!error) window.location.reload();
         }
     };
 
     const handleRejectCandidate = async (postId: number) => {
-        if (confirm("Refuser cette candidature ?\nL'annonce sera remise en ligne pour d'autres prestataires.")) {
-            const { error } = await supabase.rpc('reject_mission', { p_post_id: postId });
-            if (!error) {
-                alert("Candidature refusée.");
-                window.location.reload();
-            }
+        if (confirm("Refuser cette candidature ?")) {
+            await supabase.rpc('reject_mission', { p_post_id: postId });
+            window.location.reload();
         }
     };
 
-    const handleRefuse = async (id: number, providerId: string, price: number) => {
-        // Implementation for post-acceptance refusal (Refund logic) - keeping existing logic scaffold
-        if (confirm("Annuler ce prestataire ?")) {
-            await supabase.from('posts').update({ status: 'available', accepted_by: null }).eq('id', id);
-            setActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'available', accepted_by: null } : a));
+    const handleComplete = (id: number, authorRole: 'client' | 'provider') => {
+        // Only Client rates Provider usually
+        if (authorRole === 'client') {
+            setRatingTarget({ id, author: 'Prestataire' });
+            setIsRatingModalOpen(true);
+        } else {
+            // Provider marking as done -> Just notifies client (simple alert for now)
+            alert("Merci ! Le client a été notifié de la fin de mission.");
         }
-    };
-
-    const handleComplete = (id: number, providerId: string) => {
-        setRatingTarget({ id, author: 'Prestataire' });
-        setIsRatingModalOpen(true);
     };
 
     const handleRatingSubmit = async (rating: number, comment: string) => {
         if (ratingTarget) {
-            console.log(`Rating ${rating} for ${ratingTarget.id}`);
             await supabase.from('posts').delete().eq('id', ratingTarget.id);
-            setActivities(prev => prev.filter(a => a.id !== ratingTarget.id));
+            setMyPosts(prev => prev.filter(a => a.id !== ratingTarget.id));
             setIsRatingModalOpen(false);
             setRatingTarget(null);
-            alert("Merci ! Mission terminée et notée.");
         }
     };
-
-    const ongoing = activities.filter(a => a.status !== 'completed'); // Show all active
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '80px', display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
-            <div style={{ padding: '1rem', backgroundColor: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <button onClick={() => router.back()} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
-                    <ArrowLeft size={24} />
-                </button>
-                <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Mes Annonces (Dashboard)</h1>
+            <div style={{ padding: '1rem', backgroundColor: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: 0, zIndex: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button onClick={() => router.back()} style={{ border: 'none', background: 'none' }}>
+                        <ArrowLeft size={24} />
+                    </button>
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Mes Activités</h1>
+                </div>
+
+                {/* Tabs */}
+                <div style={{ display: 'flex', borderRadius: '12px', backgroundColor: '#F1F5F9', padding: '4px' }}>
+                    <button
+                        onClick={() => setViewMode('client')}
+                        style={{ flex: 1, padding: '8px', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', backgroundColor: viewMode === 'client' ? 'white' : 'transparent', boxShadow: viewMode === 'client' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all' }}
+                    >
+                        Je Demande 🙋‍♂️
+                    </button>
+                    <button
+                        onClick={() => setViewMode('provider')}
+                        style={{ flex: 1, padding: '8px', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', backgroundColor: viewMode === 'provider' ? 'white' : 'transparent', boxShadow: viewMode === 'provider' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all' }}
+                    >
+                        Je Realise 👷
+                    </button>
+                </div>
             </div>
 
             <div style={{ padding: '1rem', flex: 1 }}>
-                {loading ? <p style={{ textAlign: 'center', marginTop: '2rem' }}>Chargement...</p> : (
+
+                {/* --- CLIENT VIEW --- */}
+                {viewMode === 'client' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {ongoing.length === 0 && <p style={{ textAlign: 'center', color: '#94A3B8', marginTop: '2rem' }}>Aucune annonce active.</p>}
+                        {myPosts.length === 0 && !loading && <p style={{ textAlign: 'center', color: '#94A3B8' }}>Aucune demande en cours.</p>}
 
-                        {ongoing.map(activity => (
-                            <div key={activity.id} style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #E2E8F0', borderLeft: activity.status === 'pending_approval' ? '4px solid #F59E0B' : '4px solid #E2E8F0' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{activity.title}</div>
-
-                                        {/* STATUS BADGES */}
-                                        {activity.status === 'available' && <div style={{ fontSize: '0.85rem', color: '#64748B' }}>⏳ En ligne (Recherche...)</div>}
-                                        {activity.status === 'pending_approval' && <div style={{ fontSize: '0.85rem', color: '#D97706', fontWeight: 700 }}>⚠️ 1 Candidature en attente !</div>}
-                                        {activity.status === 'taken' && <div style={{ fontSize: '0.85rem', color: '#059669', fontWeight: 700 }}>✅ En cours (Prestataire validé)</div>}
-
-                                    </div>
-                                    <div style={{ fontSize: '1.25rem' }}>
-                                        {activity.price ? `${activity.price} FCFA` : 'Sur devis'}
-                                    </div>
+                        {myPosts.map(activity => (
+                            <div key={activity.id} style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #E2E8F0', borderLeft: '4px solid #3B82F6' }}>
+                                <div style={{ fontWeight: 600, fontSize: '1.1rem', marginBottom: '0.5rem' }}>{activity.title}</div>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    {activity.status === 'available' && <span className="text-gray-500 text-sm">En attente de prestataire...</span>}
+                                    {activity.status === 'pending_approval' && <span className="text-orange-500 font-bold text-sm">Validation requise !</span>}
+                                    {activity.status === 'taken' && <span className="text-green-600 font-bold text-sm">En cours...</span>}
                                 </div>
 
-                                <div style={{ fontSize: '0.85rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                    <MapPin size={14} /> {activity.location || 'Dakar'}
-                                </div>
-
-                                {/* CANDIDATE APPROVAL UI */}
+                                {/* Validation UI */}
                                 {activity.status === 'pending_approval' && activity.profiles && (
-                                    <div style={{ backgroundColor: '#FFFBEB', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #FCD34D' }}>
-                                        <div style={{ fontWeight: 600, marginBottom: '0.5rem', color: '#B45309' }}>Candidat :</div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                                            <div style={{ width: '40px', height: '40px', backgroundColor: '#FDE68A', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                                                {activity.profiles.full_name?.charAt(0) || 'P'}
-                                            </div>
-                                            <div>
-                                                <div style={{ fontWeight: 600 }}>{activity.profiles.full_name || 'Prestataire'}</div>
-                                                <div style={{ fontSize: '0.8rem', color: '#B45309' }}>⭐ {activity.profiles.rating || '5.0'} ({activity.profiles.reviews_count || 0} avis)</div>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <Button fullWidth onClick={() => handleApproveCandidate(activity.id, activity.profiles?.full_name)} style={{ backgroundColor: '#059669', color: 'white' }}>
-                                                ✅ Valider
-                                            </Button>
-                                            <Button fullWidth onClick={() => handleRejectCandidate(activity.id)} variant="outline" style={{ borderColor: '#EF4444', color: '#EF4444' }}>
-                                                ❌ Refuser
-                                            </Button>
+                                    <div className="bg-orange-50 p-3 rounded-lg mb-3 border border-orange-100">
+                                        <div className="font-bold mb-2">Candidat : {activity.profiles.full_name}</div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" onClick={() => handleApproveCandidate(activity.id, activity.profiles.full_name)}>Valider</Button>
+                                            <Button size="sm" variant="outline" onClick={() => handleRejectCandidate(activity.id)}>Refuser</Button>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Standard Actions */}
+                                {/* Tracking Client Side */}
                                 {activity.status === 'taken' && (
-                                    <Button fullWidth onClick={() => handleComplete(activity.id, "")} style={{ backgroundColor: '#10B981', color: 'white' }}>
-                                        ✅ Travail Terminé
+                                    <div className="mb-3">
+                                        <Button fullWidth variant="secondary" onClick={() => router.push(`/tracking?id=${activity.id}`)}>
+                                            🌍 Suivre le prestataire
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {activity.status === 'taken' && (
+                                    <Button fullWidth onClick={() => handleComplete(activity.id, 'client')} style={{ backgroundColor: '#10B981', color: 'white' }}>
+                                        ✅ Terminer & Noter
                                     </Button>
                                 )}
-                                {activity.status === 'available' && (
-                                    <Button fullWidth onClick={() => handleCancel(activity.id)} style={{ backgroundColor: '#EF4444', color: 'white' }}>
-                                        <XCircle size={16} style={{ marginRight: '0.5rem' }} /> Supprimer L'annonce
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* --- PROVIDER VIEW --- */}
+                {viewMode === 'provider' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {myMissions.length === 0 && !loading && <p style={{ textAlign: 'center', color: '#94A3B8' }}>Aucune mission acceptée.</p>}
+
+                        {myMissions.map(mission => (
+                            <div key={mission.id} style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #E2E8F0', borderLeft: '4px solid #10B981' }}>
+                                <div style={{ fontWeight: 600, fontSize: '1.1rem', marginBottom: '0.2rem' }}>{mission.title}</div>
+                                <div style={{ fontSize: '0.9rem', color: '#64748B', marginBottom: '1rem' }}>Client : Anonyme (Voir détails)</div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+                                    <Button variant="outline" onClick={() => window.open(`tel:${mission.contact_phone || ''}`)}>
+                                        📞 Appeler
                                     </Button>
+                                    <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${mission.lat || 14.7},${mission.lng || -17.4}`)}>
+                                        📍 Y Aller
+                                    </Button>
+                                </div>
+
+                                {/* TRACKING CONTROLS */}
+                                {mission.status === 'taken' && (
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center mb-3">
+                                        <div className="text-sm text-slate-500 mb-2">Partage de position</div>
+                                        {trackingPostId === mission.id ? (
+                                            <Button fullWidth onClick={stopTracking} style={{ backgroundColor: '#EF4444', color: 'white' }} className="animate-pulse">
+                                                <StopCircle size={18} className="mr-2" /> Arrêter le Tracking
+                                            </Button>
+                                        ) : (
+                                            <Button fullWidth onClick={() => startTracking(mission.id)} style={{ backgroundColor: '#3B82F6', color: 'white' }}>
+                                                <Navigation size={18} className="mr-2" /> Activer GPS Live
+                                            </Button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         ))}
