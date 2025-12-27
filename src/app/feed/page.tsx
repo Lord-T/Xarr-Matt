@@ -53,16 +53,19 @@ export default function FeedPage() {
         }
     }, []);
 
-    // 1. Fetch Data on Mount
+    // 1. Fetch Data (Dependent on Location for Geo-Restriction)
     useEffect(() => {
         const initData = async () => {
+            // Wait for location if we want to enforce 7km restriction
+            // If location is denied or unavailable, we might show nothing or a prompt (User Requirement: "n'accédent pas")
+            if (!viewerLocation) return;
+
             setLoading(true);
 
             // A. Get User
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 setUserId(user.id);
-                // Fetch Balance
                 const { data: profile } = await supabase.from('profiles').select('balance').eq('id', user.id).single();
                 if (profile) setProviderBalance(profile.balance || 0);
             }
@@ -71,31 +74,30 @@ export default function FeedPage() {
             const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'commission_config').single();
             if (settings?.value) setCommissionConfig(settings.value);
 
-            // C. Fetch Real Ads from Supabase
-            // We use 'posts' table. 
-            // We also need profile info.
-            const { data: posts, error } = await supabase
-                .from('posts')
-                .select('*, profiles:user_id(full_name)')
-                .eq('status', 'available')
-                .order('created_at', { ascending: false });
+            // C. Fetch GEO-RESTRICTED Ads from Supabase (RPC)
+            // Using the strict 7km server-side filter
+            console.log("Fetching posts nearby...", viewerLocation);
+
+            const { data: posts, error } = await supabase.rpc('get_posts_nearby', {
+                user_lat: viewerLocation.lat,
+                user_lng: viewerLocation.lng,
+                radius_km: 7.0 // Strict 7km limit
+            });
+
+            if (error) {
+                console.error("Feed error:", error);
+            }
 
             if (posts) {
-                // Map DB posts to UI format
-                const formattedAds = posts.map(p => {
-                    // Distance Calculation
-                    let dist = 0;
-                    if (viewerLocation && p.lat && p.lng) {
-                        dist = calculateDistance(viewerLocation.lat, viewerLocation.lng, p.lat, p.lng);
-                    }
-
+                // Map RPC result to UI format
+                const formattedAds = posts.map((p: any) => {
                     return {
                         id: p.id,
-                        author: p.profiles?.full_name || 'Anonyme',
+                        author: p.author_full_name || 'Anonyme',
                         service: p.title,
                         description: p.description,
                         price: p.price ? p.price.toString() : 'Sur devis',
-                        distance: parseFloat(dist.toFixed(1)), // REAL DISTANCE
+                        distance: parseFloat(p.distance_km.toFixed(1)), // Calculated by DB
                         timestamp: new Date(p.created_at).toLocaleDateString(),
                         locationName: p.location || 'Dakar',
                         lat: p.lat || 14.692,
@@ -104,7 +106,7 @@ export default function FeedPage() {
                         phoneNumber: p.contact_phone,
                         audioUrl: p.audio_url,
                         user_id: p.user_id,
-                        rawPrice: p.rawPrice
+                        rawPrice: p.rawPrice // Maps to "rawPrice" from RPC
                     };
                 });
                 setAds(formattedAds);
@@ -112,15 +114,13 @@ export default function FeedPage() {
             setLoading(false);
         };
 
-        // Realtime Subscription for Settings Updates (Immediate Effect)
+        // Realtime Subscription
         const settingsSub = supabase
             .channel('app_settings_changes')
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'key=eq.commission_config' },
                 (payload) => {
-                    // Live update of commission rate!
                     if (payload.new?.value) {
                         setCommissionConfig(payload.new.value);
-                        // Optional toast here: "Taux mis à jour !"
                     }
                 })
             .subscribe();
@@ -128,7 +128,7 @@ export default function FeedPage() {
         initData();
 
         return () => { supabase.removeChannel(settingsSub); };
-    }, []);
+    }, [viewerLocation]); // Re-run when location is acquired or changes
 
     const handleAccept = async (id: number) => {
         if (!userId) {
