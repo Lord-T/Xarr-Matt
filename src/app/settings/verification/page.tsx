@@ -2,17 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { ArrowLeft, ShieldCheck, Upload, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, Upload, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import Link from 'next/link';
 
 export default function VerificationPage() {
     const router = useRouter();
-    const [status, setStatus] = useState<'none' | 'pending' | 'verified' | 'rejected'>('none');
+    const [loading, setLoading] = useState(true);
+    const [status, setStatus] = useState<'initial' | 'pending' | 'approved' | 'rejected'>('initial');
     const [cniFront, setCniFront] = useState('');
     const [cniBack, setCniBack] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [user, setUser] = useState<any>(null);
 
     useEffect(() => {
         checkStatus();
@@ -20,17 +23,13 @@ export default function VerificationPage() {
 
     const checkStatus = async () => {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Check Profile
-        const { data: profile } = await supabase.from('profiles').select('is_verified').eq('id', user.id).single();
-        if (profile?.is_verified) {
-            setStatus('verified');
-            setLoading(false);
+        if (!user) {
+            router.push('/login');
             return;
         }
+        setUser(user);
 
-        // Check Requests
+        // Check recent requests
         const { data: req } = await supabase
             .from('verification_requests')
             .select('*')
@@ -40,121 +39,147 @@ export default function VerificationPage() {
             .single();
 
         if (req) {
+            // Map DB status to UI status
             if (req.status === 'pending') setStatus('pending');
+            else if (req.status === 'approved') setStatus('approved');
             else if (req.status === 'rejected') setStatus('rejected');
-            else setStatus('none');
+            else setStatus('initial');
         }
+
+        // Also check profile directly (Truth source)
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_verified')
+            .eq('id', user.id)
+            .single();
+
+        if (profile?.is_verified) setStatus('approved');
+
         setLoading(false);
     };
 
     const handleSubmit = async () => {
-        if (!cniFront) return alert("Veuillez ajouter le recto de la pièce d'identité.");
+        if (!cniFront) return alert("Veuillez ajouter le recto de votre pièce d'identité.");
+        setSubmitting(true);
 
-        try {
-            setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // Save Request
-            const { error } = await supabase.from('verification_requests').insert({
+        const { error } = await supabase
+            .from('verification_requests')
+            .insert({
                 user_id: user.id,
-                document_url: cniFront + ',' + (cniBack || ''), // Store both urls joined or use JSON if schema allows. Simple comma separated for now.
+                document_url: cniFront + ',' + (cniBack || ''),
                 status: 'pending'
             });
 
-            if (error) throw error;
-
-            setStatus('pending');
-            alert("Votre demande a été envoyée !");
-        } catch (error: any) {
+        if (error) {
             alert("Erreur: " + error.message);
-        } finally {
-            setLoading(false);
+        } else {
+            setStatus('pending');
+            alert("Demande envoyée ! L'administrateur va vérifier votre dossier.");
         }
+        setSubmitting(false);
     };
 
-    if (loading) return <div className="p-8 text-center">Chargement...</div>;
+    if (loading) return <div className="p-8 text-center text-gray-500">Chargement...</div>;
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '80px' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '20px' }}>
+
             {/* Header */}
             <div style={{ padding: '1rem', backgroundColor: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <button onClick={() => router.back()} style={{ border: 'none', background: 'none' }}>
+                <button onClick={() => router.back()} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
                     <ArrowLeft size={24} />
                 </button>
                 <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Vérification d'Identité</h1>
             </div>
 
-            <div style={{ padding: '1.5rem', maxWidth: '600px', margin: '0 auto' }}>
+            <div style={{ padding: '1rem', maxWidth: '600px', margin: '0 auto' }}>
 
-                {/* Status Verified */}
-                {status === 'verified' && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-                        <div className="flex justify-center mb-4">
-                            <CheckCircle size={48} className="text-green-500" />
+                {status === 'approved' && (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                        <div style={{ width: '80px', height: '80px', backgroundColor: '#ECFDF5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                            <ShieldCheck size={48} color="#059669" />
                         </div>
-                        <h2 className="text-xl font-bold text-green-800 mb-2">Profil Vérifié !</h2>
-                        <p className="text-green-700">Merci. Votre identité a été confirmée. Vous avez maintenant le badge de confiance.</p>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#059669', marginBottom: '0.5rem' }}>Compte Vérifié !</h2>
+                        <p style={{ color: '#64748B' }}>Votre identité a été confirmée. Vous possédez le badge de confiance.</p>
+                        <Link href="/feed">
+                            <Button fullWidth style={{ marginTop: '2rem', backgroundColor: '#059669', color: 'white' }}>Retour à l'accueil</Button>
+                        </Link>
                     </div>
                 )}
 
-                {/* Status Pending */}
                 {status === 'pending' && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-                        <div className="flex justify-center mb-4">
-                            <Clock size={48} className="text-blue-500" />
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                        <div style={{ width: '80px', height: '80px', backgroundColor: '#FFF7ED', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                            <Clock size={48} color="#EA580C" />
                         </div>
-                        <h2 className="text-xl font-bold text-blue-800 mb-2">En cours d'examen</h2>
-                        <p className="text-blue-700">Nos équipes analysent vos documents. Cela prend généralement moins de 24h.</p>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#EA580C', marginBottom: '0.5rem' }}>Dossier en cours...</h2>
+                        <p style={{ color: '#64748B' }}>Nous analysons votre document. Vous recevrez une notification sous 24h.</p>
+                        <Button variant="outline" fullWidth style={{ marginTop: '2rem' }} onClick={() => router.back()}>Retour</Button>
                     </div>
                 )}
 
-                {/* Status Form (None or Rejected) */}
-                {(status === 'none' || status === 'rejected') && (
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                {(status === 'initial' || status === 'rejected') && (
+                    <>
+                        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E2E8F0', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem' }}>Pourquoi vérifier son compte ?</h2>
+                            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#475569' }}>
+                                    <CheckCircle size={20} color="#10B981" />
+                                    Badge "Vérifié" visible par les clients
+                                </li>
+                                <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#475569' }}>
+                                    <CheckCircle size={20} color="#10B981" />
+                                    +50% de chances d'être choisi
+                                </li>
+                                <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#475569' }}>
+                                    <CheckCircle size={20} color="#10B981" />
+                                    Accès aux missions Premium
+                                </li>
+                            </ul>
+                        </div>
 
                         {status === 'rejected' && (
-                            <div className="mb-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg flex gap-3">
-                                <AlertCircle shrink-0 />
+                            <div style={{ backgroundColor: '#FEF2F2', padding: '1rem', borderRadius: '8px', color: '#B91C1C', marginBottom: '1.5rem', border: '1px solid #FECACA', display: 'flex', gap: '10px' }}>
+                                <AlertCircle size={20} />
                                 <div>
-                                    <div className="font-bold">Demande précédente refusée</div>
-                                    <div className="text-sm">Veuillez soumettre des photos plus claires.</div>
+                                    <strong>Dossier Refusé :</strong> Votre document n'était pas lisible ou conforme. Veuillez réessayer.
                                 </div>
                             </div>
                         )}
 
-                        <h3 className="font-bold text-lg mb-4">Envoyer vos documents</h3>
-                        <p className="text-slate-500 text-sm mb-6">
-                            Pour garantir la sécurité de la communauté, nous demandons une pièce d'identité officielle (CNI, Passeport).
-                            Vos données sont cryptées et stockées de manière sécurisée.
-                        </p>
+                        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                            <h3 style={{ fontWeight: 600, marginBottom: '1rem' }}>Télécharger une pièce d'identité</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#64748B', marginBottom: '1.5rem' }}>
+                                Carte Nationale d'Identité (CNI) ou Passeport en cours de validité. Format visible.
+                            </p>
 
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Recto (Face Photo)</label>
+                            <div className="space-y-6">
                                 <ImageUpload
                                     bucket="verification_docs"
-                                    label="Photo Recto"
+                                    label="Photo de la pièce (Recto)"
                                     currentImage={cniFront}
                                     onUpload={setCniFront}
                                 />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Verso (Dos)</label>
                                 <ImageUpload
                                     bucket="verification_docs"
-                                    label="Photo Verso"
+                                    label="Photo de la pièce (Verso - Optionnel)"
                                     currentImage={cniBack}
                                     onUpload={setCniBack}
                                 />
                             </div>
 
-                            <Button onClick={handleSubmit} fullWidth disabled={!cniFront}>
-                                Envoyer pour vérification
-                            </Button>
+                            <div style={{ marginTop: '2rem' }}>
+                                <Button
+                                    fullWidth
+                                    onClick={handleSubmit}
+                                    disabled={submitting || !cniFront}
+                                    style={{ backgroundColor: '#2563EB', color: 'white', opacity: (submitting || !cniFront) ? 0.7 : 1 }}
+                                >
+                                    {submitting ? 'Envoi en cours...' : 'Envoyer pour examen'}
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    </>
                 )}
 
             </div>
