@@ -12,6 +12,7 @@ import { FinancesModule } from '@/components/admin/modules/FinancesModule';
 import { ContentModule } from '@/components/admin/modules/ContentModule';
 import { SystemModule } from '@/components/admin/modules/SystemModule';
 import { DashboardModule } from '@/components/admin/modules/DashboardModule';
+import { VerificationsModule } from '@/components/admin/modules/VerificationsModule';
 
 export default function AdminPage() {
     const router = useRouter();
@@ -79,6 +80,7 @@ export default function AdminPage() {
                 {/* Module Content */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[600px] p-6">
                     {activeTab === 'dashboard' && <DashboardModule onNavigate={(tab: any) => setActiveTab(tab)} />}
+                    {activeTab === 'verifications' && <VerificationsModule />}
                     {activeTab === 'users' && <UsersModule />}
                     {activeTab === 'finances' && <FinancesModule />}
                     {activeTab === 'content' && <ContentModule />}

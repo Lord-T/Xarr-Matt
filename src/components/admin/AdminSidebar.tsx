@@ -8,7 +8,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export type AdminTab = 'dashboard' | 'users' | 'finances' | 'content' | 'system';
+export type AdminTab = 'dashboard' | 'users' | 'verifications' | 'finances' | 'content' | 'system';
 
 interface AdminSidebarProps {
     activeTab: AdminTab;
@@ -18,6 +18,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
     const menuItems = [
         { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
+        { id: 'verifications', label: 'Vérifications', icon: ShieldCheck },
         { id: 'users', label: 'Utilisateurs', icon: Users },
         { id: 'finances', label: 'Finances', icon: Wallet },
         { id: 'content', label: 'Contenu & Pubs', icon: Image },
@@ -42,8 +43,8 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
                         key={item.id}
                         onClick={() => onTabChange(item.id as AdminTab)}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === item.id
-                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 font-medium'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 font-medium'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                             }`}
                     >
                         <item.icon size={20} />
