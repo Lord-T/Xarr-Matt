@@ -8,28 +8,30 @@ interface PaymentModalProps {
     amount?: number; // If provided, amount is fixed. If undefined, user can input.
     isOpen: boolean;
     onClose: () => void;
-    onPaymentComplete: (amount: number) => void;
+    onPaymentComplete: (amount: number, method: string, phoneNumber: string) => void;
 }
 
-export function PaymentModal({ amount: fixedAmount, isOpen, onClose, onPaymentComplete }: PaymentModalProps) {
+export function PaymentModal({ amount: fixedAmount, isOpen, onClose, onPaymentComplete, mode = 'deposit' }: PaymentModalProps & { mode?: 'deposit' | 'withdrawal' }) {
     const [amount, setAmount] = useState<number>(fixedAmount || 5000); // Default to 5000 if nothing provided
     const [method, setMethod] = useState<'wave' | 'om' | 'free' | null>(null);
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [processing, setProcessing] = useState(false);
     const [completed, setCompleted] = useState(false);
 
     if (!isOpen) return null;
 
-    const handlePay = () => {
+    const handleAction = () => {
         if (!method) return;
+        if (mode === 'withdrawal' && !phoneNumber) return alert("Numéro requis");
+
         setProcessing(true);
 
         // Simulate API delay
         setTimeout(() => {
             setProcessing(false);
             setCompleted(true);
-            setCompleted(true);
             setTimeout(() => {
-                onPaymentComplete(amount);
+                onPaymentComplete(amount, method, phoneNumber);
                 onClose(); // Auto close after success
             }, 2000);
         }, 2000);
@@ -41,8 +43,12 @@ export function PaymentModal({ amount: fixedAmount, isOpen, onClose, onPaymentCo
                 <div style={modalStyle}>
                     <div style={{ textAlign: 'center', padding: '2rem' }}>
                         <CheckCircle size={64} color="var(--success)" style={{ margin: '0 auto 1rem auto' }} />
-                        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Paiement Réussi !</h2>
-                        <p style={{ color: 'var(--muted)' }}>Votre transaction de {amount} FCFA est confirmée.</p>
+                        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{mode === 'deposit' ? 'Paiement Réussi !' : 'Demande Envoyée !'}</h2>
+                        <p style={{ color: 'var(--muted)' }}>
+                            {mode === 'deposit'
+                                ? `Votre transaction de ${amount} FCFA est confirmée.`
+                                : `Retrait de ${amount} FCFA en cours de traitement.`}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -53,14 +59,16 @@ export function PaymentModal({ amount: fixedAmount, isOpen, onClose, onPaymentCo
         <div style={overlayStyle}>
             <div style={modalStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Paiement Sécurisé</h3>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{mode === 'deposit' ? 'Recharger le compte' : 'Retirer des fonds'}</h3>
                     <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>
                         <X size={24} />
                     </button>
                 </div>
 
                 <div style={{ marginBottom: '2rem' }}>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Montant à payer</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+                        {mode === 'deposit' ? 'Montant à recharger' : 'Montant à retirer'}
+                    </div>
                     {fixedAmount ? (
                         <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>{amount.toLocaleString()} FCFA</div>
                     ) : (
@@ -102,16 +110,26 @@ export function PaymentModal({ amount: fixedAmount, isOpen, onClose, onPaymentCo
 
                 {method && (
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Numéro de paiement</label>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                            {mode === 'deposit' ? 'Numéro de paiement' : 'Numéro de réception'}
+                        </label>
                         <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.5rem' }}>
                             <Smartphone size={18} color="var(--muted)" style={{ marginRight: '0.5rem' }} />
-                            <input type="tel" placeholder="77 000 00 00" className="input" style={{ border: 'none', padding: 0 }} autoFocus />
+                            <input
+                                type="tel"
+                                placeholder="77 000 00 00"
+                                className="input"
+                                style={{ border: 'none', padding: 0, width: '100%', outline: 'none' }}
+                                autoFocus
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                            />
                         </div>
                     </div>
                 )}
 
-                <Button fullWidth size="lg" disabled={!method || processing} onClick={handlePay}>
-                    {processing ? 'Traitement en cours...' : `Payer ${amount.toLocaleString()} FCFA`}
+                <Button fullWidth size="lg" disabled={!method || processing || (mode === 'withdrawal' && !phoneNumber)} onClick={handleAction}>
+                    {processing ? 'Traitement en cours...' : `${mode === 'deposit' ? 'Payer' : 'Retirer'} ${amount.toLocaleString()} FCFA`}
                 </Button>
             </div>
         </div>

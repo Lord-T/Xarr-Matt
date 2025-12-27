@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, MoreVertical, Shield, Ban, Coins, CheckCircle, XCircle } from 'lucide-react';
-import { ImageUpload } from '@/components/ui/ImageUpload'; // Reusing for consistency if needed
+import { Search, MoreVertical, Shield, Ban, Coins, CheckCircle, XCircle, Unlock } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 export function UsersModule() {
     const [users, setUsers] = useState<any[]>([]);
@@ -44,26 +44,39 @@ export function UsersModule() {
         return () => { supabase.removeChannel(channel); };
     }, []);
 
-    const handleBan = async (id: string, currentStatus: boolean) => {
-        // Mock ban logic (needs 'banned' column in profiles, adding it conceptually)
-        // For now, we'll just toggle a metadata field or simulate
-        alert(`Ban/Unban logic for ${id}`);
-    };
+    const handleBan = async (user: any) => {
+        const newStatus = !user.is_banned;
+        if (!confirm(newStatus ? `Bannir ${user.full_name} ?` : `Débannir ${user.full_name} ?`)) return;
 
-    const handleVerify = async (id: string) => {
-        // Logic to approve verification
-        alert(`Verification logic for ${id}`);
+        const { data, error } = await supabase.rpc('admin_toggle_ban', {
+            p_user_id: user.id,
+            p_status: newStatus
+        });
+
+        if (error) return alert("Erreur: " + error.message);
+        // @ts-ignore
+        if (data && !data.success) return alert("Erreur: " + data.message);
+
+        alert(newStatus ? "Utilisateur banni." : "Utilisateur débanni.");
+        // UI updates automatically via Realtime usually, but let's be safe
+        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: newStatus } : u));
     };
 
     const filteredUsers = users.filter(user => {
-        const matchesSearch = user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.phone?.includes(searchTerm);
-        // Filter logic mock
-        return matchesSearch;
+        const matchesSearch = (user.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (user.phone || '').includes(searchTerm);
+
+        let matchesFilter = true;
+        if (filter === 'provider') matchesFilter = user.is_provider;
+        if (filter === 'client') matchesFilter = !user.is_provider;
+        if (filter === 'banned') matchesFilter = user.is_banned;
+
+        return matchesSearch && matchesFilter;
     });
 
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [creditAmount, setCreditAmount] = useState('');
+    const [reason, setReason] = useState('Cadeau Admin 🎁');
     const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
 
     const openCreditModal = (user: any) => {
@@ -75,36 +88,24 @@ export function UsersModule() {
     const handleConfirmCredit = async () => {
         if (!selectedUser || !creditAmount) return;
         const amount = parseInt(creditAmount);
-        if (isNaN(amount) || amount <= 0) return alert("Montant invalide");
+        if (isNaN(amount) || amount === 0) return alert("Montant invalide");
 
-        if (!confirm(`Confirmer l'ajout de ${amount} FCFA au solde de ${selectedUser.full_name} ?`)) return;
+        if (!confirm(`Confirmer l'ajustement de ${amount} FCFA pour ${selectedUser.full_name} ?`)) return;
 
-        // 1. Update Profile Balance
-        const newBalance = (selectedUser.balance || 0) + amount;
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .update({ balance: newBalance })
-            .eq('id', selectedUser.id);
-
-        if (profileError) {
-            alert("Erreur mise à jour profil: " + profileError.message);
-            return;
-        }
-
-        // 2. Log Transaction
-        const { error: txError } = await supabase.from('transactions').insert({
-            user_id: selectedUser.id,
-            amount: amount,
-            type: 'deposit',
-            label: 'Cadeau Admin 🎁'
+        // Use RPC
+        const { data, error } = await supabase.rpc('admin_adjust_balance', {
+            p_user_id: selectedUser.id,
+            p_amount: amount,
+            p_reason: reason
         });
 
-        if (txError) console.error("Erreur log transaction", txError);
+        if (error) return alert("Erreur: " + error.message);
+        // @ts-ignore
+        if (data && !data.success) return alert("Erreur: " + data.message);
 
-        // 3. UI Update
-        alert("Succès ! Montant crédité.");
-        setUsers(users.map(u => u.id === selectedUser.id ? { ...u, balance: newBalance } : u));
+        alert("Succès ! Solde ajusté.");
         setIsCreditModalOpen(false);
+        // Balance updates via Realtime
     };
 
     return (
@@ -126,6 +127,7 @@ export function UsersModule() {
                         <option value="all">Tous les utilisateurs</option>
                         <option value="provider">Prestataires</option>
                         <option value="client">Clients</option>
+                        <option value="banned">Bannis</option>
                     </select>
                 </div>
             </div>
@@ -173,21 +175,31 @@ export function UsersModule() {
                                     {user.balance?.toLocaleString()} FCFA
                                 </td>
                                 <td className="py-3 px-4">
-                                    <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                                        <CheckCircle size={14} /> Actif
-                                    </span>
+                                    {user.is_banned ? (
+                                        <span className="flex items-center gap-1 text-red-600 text-sm font-bold bg-red-100 px-2 py-1 rounded-full w-fit">
+                                            <Ban size={14} /> Banni
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                                            <CheckCircle size={14} /> Actif
+                                        </span>
+                                    )}
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                     <div className="flex justify-end gap-2">
                                         <button
                                             onClick={() => openCreditModal(user)}
                                             className="px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg flex items-center gap-2 text-sm font-bold transition-colors"
-                                            title="Offrir de l'argent"
+                                            title="Ajuster Solde"
                                         >
-                                            <Coins size={16} /> Offrir
+                                            <Coins size={16} /> Solde
                                         </button>
-                                        <button className="p-2 hover:bg-red-100 rounded-lg text-red-500" title="Bannir">
-                                            <Ban size={18} />
+                                        <button
+                                            onClick={() => handleBan(user)}
+                                            className={`p-2 rounded-lg ${user.is_banned ? 'bg-orange-100 text-orange-600' : 'hover:bg-red-100 text-red-500'}`}
+                                            title={user.is_banned ? "Débannir" : "Bannir"}
+                                        >
+                                            {user.is_banned ? <Unlock size={18} /> : <Ban size={18} />}
                                         </button>
                                     </div>
                                 </td>
@@ -202,22 +214,33 @@ export function UsersModule() {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
                     <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl scale-100">
                         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <Coins className="text-yellow-500" /> Offrir du Crédit
+                            <Coins className="text-yellow-500" /> Ajuster le Solde
                         </h3>
                         <p className="text-slate-600 mb-6">
-                            Vous allez ajouter des fonds au portefeuille de <strong>{selectedUser?.full_name}</strong>.
-                            Cette action est immédiate.
+                            Modifier le solde de <strong>{selectedUser?.full_name}</strong>.
+                            Utilisez un montant négatif pour une pénalité.
                         </p>
 
-                        <div className="mb-6">
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Montant à offrir (FCFA)</label>
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Montant (FCFA)</label>
                             <input
                                 type="number"
                                 className="w-full text-2xl font-mono p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                 autoFocus
-                                placeholder="ex: 5000"
+                                placeholder="ex: 5000 ou -2000"
                                 value={creditAmount}
                                 onChange={e => setCreditAmount(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Raison / Label</label>
+                            <input
+                                type="text"
+                                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                placeholder="Raison de l'ajustement"
+                                value={reason}
+                                onChange={e => setReason(e.target.value)}
                             />
                         </div>
 
@@ -232,7 +255,7 @@ export function UsersModule() {
                                 onClick={handleConfirmCredit}
                                 className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-md transform active:scale-95 transition-all"
                             >
-                                Confirmer l'envoi 💸
+                                Valider
                             </button>
                         </div>
                     </div>
