@@ -171,13 +171,19 @@ export default function FeedPage() {
 
     // 2. AUTHOR: View Candidates
     const handleViewCandidates = async (postId: string | number) => {
+        // DEBUG ALERT
+        alert("DEBUG PAGE: Charge candidatures pour " + postId);
+
         setSelectedPostId(String(postId));
         setCandidateModalOpen(true);
         setLoadingCandidates(true);
 
         const { data, error } = await supabase.rpc('get_post_applications', { p_post_id: postId });
         if (data) setCandidates(data);
-        if (error) console.error(error);
+        if (error) {
+            console.error(error);
+            alert("Erreur DB: " + error.message);
+        }
 
         setLoadingCandidates(false);
     };

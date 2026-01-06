@@ -37,121 +37,134 @@ interface FeedItemComponentProps {
 }
 
 export function FeedItem(props: FeedItemComponentProps) {
-    // Destructure specifically to avoid issues
-    const { item, currentUserId, onApply, onManageCandidates, onComplete } = props;
+    const { item, currentUserId, onApply, onComplete } = props;
 
-    // Local state for immediate feedback
     const [isLoading, setIsLoading] = useState(false);
     const [localStatus, setLocalStatus] = useState<'pending' | 'accepted' | 'rejected' | null>(item.myApplicationStatus || null);
 
+    // --- AUTONOMOUS CANDIDATE VIEW STATE ---
+    const [showCandidates, setShowCandidates] = useState(false);
+    const [candidates, setCandidates] = useState<any[]>([]);
+    const [loadingCandidates, setLoadingCandidates] = useState(false);
+
     const isAuthor = currentUserId === item.user_id;
 
-    // --- ROBUST HANDLERS ---
+    // --- HANDLERS ---
 
     const handleApplyClick = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        console.log("🔵 HandleApplyClick triggered for", item.id);
-
-        if (!currentUserId) {
-            console.warn("User not logged in -> Redirecting");
-            window.location.href = '/login';
-            return;
-        }
+        if (!currentUserId) { window.location.href = '/login'; return; }
 
         setIsLoading(true);
-
         try {
-            // Priority 1: Use Parent Prop if available
+            // Try Standard Prop first
             if (onApply && typeof onApply === 'function') {
-                console.log("Calling parent onApply...");
                 await onApply(item.id);
-                // Assume success if no error thrown
                 setLocalStatus('pending');
-                // Parent should reload, but we update local UI instantly
-            }
-            // Priority 2: Self-Service Fallback (Database Direct)
-            else {
-                console.log("⚠️ Parent onApply missing. Using Fallback logic.");
-                const { data, error } = await supabase.rpc('apply_for_mission', {
-                    p_provider_id: currentUserId,
-                    p_post_id: item.id
-                });
-
+            } else {
+                // Fallback
+                const { data, error } = await supabase.rpc('apply_for_mission', { p_provider_id: currentUserId, p_post_id: item.id });
                 if (error) throw error;
-                if (data && !data.success) throw new Error(data.message || 'Error');
-
                 setLocalStatus('pending');
                 alert("✅ Candidature envoyée !");
+                // Optional: reload to refresh everything
                 window.location.reload();
             }
         } catch (err: any) {
-            console.error("Apply Error:", err);
-            alert("Erreur: " + (err.message || "Impossible de postuler"));
-            setLocalStatus(null); // Revert on error
+            alert("Erreur: " + err.message);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleManageClick = (e: React.MouseEvent) => {
+    const handleManageClick = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (onManageCandidates) {
-            onManageCandidates(item.id);
-        } else {
-            console.error("onManageCandidates missing");
+
+        // Toggle
+        if (showCandidates) {
+            setShowCandidates(false);
+            return;
+        }
+
+        setShowCandidates(true);
+        setLoadingCandidates(true);
+
+        try {
+            console.log("Fetching candidates for", item.id);
+            const { data, error } = await supabase.rpc('get_post_applications', { p_post_id: item.id });
+            if (error) throw error;
+            setCandidates(data || []);
+        } catch (err: any) {
+            alert("Erreur chargement: " + err.message);
+        } finally {
+            setLoadingCandidates(false);
+        }
+    };
+
+    const handleApproveProvider = async (providerId: string) => {
+        // Calculate ~10% fee
+        let fee = 500;
+        if (item.rawPrice) fee = Math.floor(item.rawPrice * 0.10);
+        else {
+            const clean = String(item.price).replace(/[^\d]/g, '');
+            if (clean) fee = Math.floor(parseInt(clean) * 0.10);
+        }
+        if (fee < 100) fee = 100;
+
+        if (!confirm(`Valider ce prestataire ?\nCela débitera ~${fee} FCFA de SON solde.`)) return;
+
+        try {
+            const { data: result, error } = await supabase.rpc('approve_provider', {
+                p_post_id: item.id,
+                p_provider_id: providerId,
+                p_fee: fee
+            });
+
+            if (error || (result && !result.success)) {
+                throw new Error(error?.message || result?.message);
+            }
+
+            alert("✅ Prestataire validé !");
+            window.location.reload();
+
+        } catch (err: any) {
+            alert("Erreur validation: " + err.message);
         }
     };
 
     // --- RENDER HELPERS ---
-
-    const handleNavigation = () => {
-        window.open(`https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`, '_blank');
-    };
     const handleCall = () => { if (item.phoneNumber) window.open(`tel:${item.phoneNumber}`); };
-    const handleSMS = () => { if (item.phoneNumber) window.open(`sms:${item.phoneNumber}`); };
     const handleWhatsApp = () => { if (item.phoneNumber) window.open(`https://wa.me/${item.phoneNumber.replace(/\s+/g, '')}`, '_blank'); };
+    const handleNavigation = () => { window.open(`https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`, '_blank'); };
 
-    // Styles
     let borderStyle = '1px solid var(--border)';
-    let bgStyle = 'white'; // Default white to be safe
-
-    if (item.status === 'accepted') {
-        borderStyle = '2px solid var(--primary)';
-        bgStyle = '#F0FDF4';
-    } else if (item.isUrgent) {
-        borderStyle = '2px solid #EF4444';
-        bgStyle = '#FEF2F2';
-    }
+    let bgStyle = 'white';
+    if (item.status === 'accepted') { borderStyle = '2px solid var(--primary)'; bgStyle = '#F0FDF4'; }
+    else if (item.isUrgent) { borderStyle = '2px solid #EF4444'; bgStyle = '#FEF2F2'; }
 
     const effectiveStatus = localStatus || item.myApplicationStatus;
 
     return (
-        <div className="card" style={{ marginBottom: '1rem', padding: '0', overflow: 'hidden', border: borderStyle, position: 'relative', backgroundColor: bgStyle }}>
+        <div className="card" style={{ marginBottom: '1rem', padding: '0', overflow: 'hidden', border: borderStyle, backgroundColor: bgStyle, position: 'relative' }}>
 
-            {/* --- HEADER --- */}
-            <div style={{ padding: '1rem', borderBottom: `1px solid ${item.isUrgent ? '#FECACA' : '#E2E8F0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {/* HEADER */}
+            <div style={{ padding: '1rem', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#64748B' }}>
                         {item.author.charAt(0)}
                     </div>
                     <div>
-                        <div style={{ fontWeight: 600 }}>{item.author} {isAuthor && <span style={{ fontSize: '0.7rem', color: '#EF4444' }}>(Moi)</span>}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                            {item.timestamp} • {item.distance.toFixed(1)} km
-                        </div>
+                        <div style={{ fontWeight: 600 }}>{item.author} {isAuthor && <span style={{ fontSize: '0.8em', color: 'red' }}>(Moi)</span>}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'gray' }}>{item.timestamp} • {item.distance.toFixed(1)} km</div>
                     </div>
                 </div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--primary)', backgroundColor: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
-                    {item.service}
-                </div>
+                <div style={{ fontWeight: 600, color: 'var(--primary)', fontSize: '0.9rem' }}>{item.service}</div>
             </div>
 
-            {/* --- CONTENT --- */}
+            {/* CONTENT */}
             <div style={{ padding: '1rem' }}>
-                <p style={{ marginBottom: '1rem', lineHeight: 1.5 }}>{item.description}</p>
-                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Budget: {item.price}</div>
-
-                {/* Audio Note (if any) */}
+                <p style={{ marginBottom: '0.5rem' }}>{item.description}</p>
+                <div style={{ fontWeight: 'bold' }}>{item.price}</div>
                 {item.audioUrl && (
                     <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#F1F5F9', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <MessageCircle size={16} />
@@ -160,64 +173,86 @@ export function FeedItem(props: FeedItemComponentProps) {
                 )}
             </div>
 
-            {/* --- ACTIONS --- */}
-            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* CANDIDATE LIST (AUTONOMOUS) */}
+            {showCandidates && isAuthor && (
+                <div style={{ borderTop: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', padding: '1rem' }}>
+                    <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Candidatures ({candidates.length})</h4>
 
-                {/* CASE 1: AUTHOR */}
-                {isAuthor ? (
+                    {loadingCandidates && <div style={{ textAlign: 'center', padding: '1rem' }}>Chargement...</div>}
+
+                    {!loadingCandidates && candidates.length === 0 && (
+                        <div style={{ color: 'gray', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>Aucun candidat pour le moment.</div>
+                    )}
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {item.status === 'available' && (
-                            <Button fullWidth onClick={handleManageClick} style={{ backgroundColor: '#3B82F6', color: 'white' }}>
-                                👥 Voir les candidatures
-                            </Button>
-                        )}
-                        {item.status === 'accepted' && (
-                            <>
-                                <div style={{ textAlign: 'center', color: '#22C55E', fontWeight: 'bold', fontSize: '0.9rem' }}>✅ Mission en cours</div>
-                                <Button fullWidth onClick={() => onComplete(item.id)} style={{ backgroundColor: '#10B981', color: 'white' }}>🏁 Terminer</Button>
-                            </>
-                        )}
-                    </div>
-                ) : (
-                    // CASE 2: VISITOR / PROVIDER
-                    <>
-                        {item.status === 'available' && (
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                {effectiveStatus === 'pending' ? (
-                                    <div style={{
-                                        flex: 1,
-                                        backgroundColor: '#EFF6FF',
-                                        color: '#3B82F6',
-                                        padding: '0.5rem',
-                                        borderRadius: '8px',
-                                        textAlign: 'center',
-                                        fontWeight: '600',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
-                                    }}>
-                                        ⏳ Candidature envoyée
+                        {candidates.map(c => (
+                            <div key={c.id} style={{ background: 'white', padding: '0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {c.full_name?.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: 600 }}>{c.full_name}</div>
+                                            <div style={{ fontSize: '0.8rem', color: '#64748B' }}>{c.profession || 'Prestataire'}</div>
+                                            {/* SHOW PHONE BEFORE VALIDATION AS REQUESTED */}
+                                            <div style={{ fontSize: '0.8rem', color: '#3B82F6', marginTop: '2px' }}>
+                                                📞 {c.phone || c.contact_phone || 'Non renseigné'}
+                                            </div>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <Button
-                                        fullWidth
-                                        disabled={isLoading}
-                                        onClick={handleApplyClick}
-                                        style={{ backgroundColor: 'var(--primary)', opacity: isLoading ? 0.7 : 1 }}
-                                    >
-                                        {isLoading ? 'Envoi...' : '🤚 Postuler'}
-                                    </Button>
-                                )}
-                            </div>
-                        )}
+                                    <div style={{ fontSize: '0.8rem', color: 'gold' }}>★ {c.rating ? c.rating.toFixed(1) : 'NEW'}</div>
+                                </div>
 
-                        {item.status === 'accepted' && (
-                            <div style={{ textAlign: 'center', color: '#94A3B8' }}>Mission attribuée à un autre prestataire</div>
-                        )}
-                    </>
+                                {c.status === 'pending' && (
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                                        <button
+                                            onClick={() => window.open(`/profile/${c.provider_id}`, '_blank')}
+                                            style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: '1px solid #CBD5E1', background: 'white' }}
+                                        >
+                                            👤 Voir Profil
+                                        </button>
+                                        <button
+                                            onClick={() => handleApproveProvider(c.provider_id)}
+                                            style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: 'none', background: '#10B981', color: 'white', fontWeight: 600 }}
+                                        >
+                                            ✅ Valider
+                                        </button>
+                                    </div>
+                                )}
+                                {c.status === 'accepted' && <div style={{ color: '#10B981', textAlign: 'center', fontWeight: 'bold', marginTop: '0.5rem' }}>✅ CHOISI</div>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ACTIONS */}
+            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {isAuthor ? (
+                    item.status === 'available' || item.status === 'pending_approval' ? (
+                        <Button fullWidth onClick={handleManageClick} style={{ backgroundColor: '#3B82F6', color: 'white' }}>
+                            {showCandidates ? '🔼 Masquer Candidatures' : '👥 Voir les candidatures'}
+                        </Button>
+                    ) : (
+                        <Button fullWidth onClick={() => onComplete(item.id)} style={{ backgroundColor: '#10B981', color: 'white' }}>🏁 Terminer Mission</Button>
+                    )
+                ) : (
+                    // VISITOR
+                    item.status === 'available' && (
+                        effectiveStatus === 'pending' ? (
+                            <div style={{ padding: '0.5rem', background: '#EFF6FF', color: '#3B82F6', textAlign: 'center', borderRadius: '6px', fontWeight: 600 }}>⏳ Candidature envoyée</div>
+                        ) : (
+                            <Button fullWidth disabled={isLoading} onClick={handleApplyClick} style={{ backgroundColor: 'var(--primary)' }}>
+                                {isLoading ? '...' : '🤚 Postuler'}
+                            </Button>
+                        )
+                    )
                 )}
 
-                {/* SHARED: Contact/Nav (Only if Accepted and involved) */}
+                {/* CONTACT BUTTONS IF ACCEPTED */}
                 {item.status === 'accepted' && (isAuthor || item.accepted_by === currentUserId) && (
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <Button variant="outline" style={{ flex: 1 }} onClick={handleCall}><Phone size={16} /></Button>
                         <Button variant="outline" style={{ flex: 1 }} onClick={handleWhatsApp}><MessageCircle size={16} /></Button>
                         <Button variant="outline" style={{ flex: 1 }} onClick={handleNavigation}><Navigation size={16} /></Button>
