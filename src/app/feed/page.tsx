@@ -140,7 +140,13 @@ export default function FeedPage() {
 
     // 1. PROVIDER: Apply for Mission
     const handleApply = async (id: string | number) => {
-        if (!userId) { router.push('/login'); return; }
+        alert(`DEBUG: handleApply called for ${id}. UserID: ${userId}`);
+
+        if (!userId) {
+            alert("Pas connecté -> Login");
+            router.push('/login');
+            return;
+        }
 
         // Optimistic Update can be added here if needed, but we rely on RPC return usually or refresh
 
@@ -334,42 +340,56 @@ export default function FeedPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {candidates.map(c => (
                                     <div key={c.id} style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                {c.full_name?.charAt(0) || '?'}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={() => router.push(`/profile/${c.provider_id}`)}>
+                                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E2E8F0', overflow: 'hidden' }}>
+                                                {c.avatar_url ? (
+                                                    <img src={c.avatar_url} alt={c.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                                                        {c.full_name?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div>
                                                 <div style={{ fontWeight: '600' }}>{c.full_name}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#64748B' }}>{c.profession || 'Prestataire'}</div>
+                                                {/* Client sees phone BEFORE validation as per requirement */}
+                                                <div style={{ fontSize: '0.8rem', color: '#3B82F6', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                    📞 {c.phone || c.contact_phone || 'Masqué'}
+                                                </div>
                                                 <div style={{ fontSize: '0.8rem', color: 'gold' }}>★ {c.rating ? c.rating.toFixed(1) : 'NEW'} ({c.reviews_count} avis)</div>
                                             </div>
                                         </div>
 
                                         {c.status === 'pending' && (
-                                            <button
-                                                onClick={() => {
-                                                    // Calculate fee logic reuse
-                                                    const ad = ads.find(a => String(a.id) === selectedPostId);
-                                                    let fee = 500;
-                                                    if (ad && ad.rawPrice) fee = Math.floor(ad.rawPrice * 0.10);
-                                                    else if (ad && ad.price) {
-                                                        const clean = String(ad.price).replace(/[^\d]/g, '');
-                                                        if (clean) fee = Math.floor(parseInt(clean) * 0.10);
-                                                    }
-                                                    if (fee < 100) fee = 100;
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                                <button
+                                                    onClick={() => router.push(`/profile/${c.provider_id}`)}
+                                                    style={{ flex: 1, padding: '0.5rem', backgroundColor: '#F1F5F9', border: 'none', borderRadius: '6px' }}
+                                                >
+                                                    👤 Voir Profil
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const ad = ads.find(a => String(a.id) === selectedPostId);
+                                                        let fee = 500;
+                                                        if (ad && ad.rawPrice) fee = Math.floor(ad.rawPrice * 0.10);
+                                                        if (fee < 100) fee = 100;
 
-                                                    handleApproveProvider(c.provider_id, fee);
-                                                }}
-                                                style={{
-                                                    width: '100%', padding: '0.5rem',
-                                                    backgroundColor: '#10B981', color: 'white',
-                                                    border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer'
-                                                }}
-                                            >
-                                                ✅ Accepter (Com: {500} FCFA~)
-                                            </button>
+                                                        handleApproveProvider(c.provider_id, fee);
+                                                    }}
+                                                    style={{
+                                                        flex: 1, padding: '0.5rem',
+                                                        backgroundColor: '#10B981', color: 'white',
+                                                        border: 'none', borderRadius: '6px', fontWeight: '600'
+                                                    }}
+                                                >
+                                                    ✅ Valider
+                                                </button>
+                                            </div>
                                         )}
                                         {c.status === 'accepted' && (
-                                            <div style={{ color: '#10B981', fontWeight: 'bold', textAlign: 'center' }}>Validé</div>
+                                            <div style={{ color: '#10B981', fontWeight: 'bold', textAlign: 'center', marginTop: '0.5rem' }}>✅ Validé</div>
                                         )}
                                     </div>
                                 ))}
