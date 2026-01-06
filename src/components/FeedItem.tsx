@@ -111,7 +111,7 @@ export function FeedItem(props: FeedItemComponentProps) {
         }
         if (fee < 100) fee = 100;
 
-        if (!confirm(`Valider ce prestataire ?\nCela débitera ~${fee} FCFA de SON solde.`)) return;
+        if (!confirm(`Confirmer ce prestataire ?\n\n⚠️ ATTENTION : Une commission de ~${fee} FCFA sera DÉBITÉE DU COMPTE DU PRESTATAIRE (et non du vôtre).\n\nVoulez-vous procéder ?`)) return;
 
         try {
             const { data: result, error } = await supabase.rpc('approve_provider', {
