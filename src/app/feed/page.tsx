@@ -18,7 +18,7 @@ export default function FeedPage() {
 
     // Rating Logic State
     const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
-    const [ratingTarget, setRatingTarget] = useState<{ id: number, author: string } | null>(null);
+    const [ratingTarget, setRatingTarget] = useState<{ id: string | number, author: string } | null>(null);
 
     // Business Logic: Provider Wallet Balance (Real)
     const [providerBalance, setProviderBalance] = useState(0);
@@ -28,6 +28,12 @@ export default function FeedPage() {
     const [commissionConfig, setCommissionConfig] = useState<{ rate: number, fixed_fallback: number }>({ rate: 10, fixed_fallback: 500 });
 
     const [viewerLocation, setViewerLocation] = useState<{ lat: number, lng: number } | null>(null);
+
+    // Candidate Management State
+    const [candidateModalOpen, setCandidateModalOpen] = useState(false);
+    const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+    const [candidates, setCandidates] = useState<any[]>([]);
+    const [loadingCandidates, setLoadingCandidates] = useState(false);
 
     // Haversine Distance Helper
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -107,7 +113,8 @@ export default function FeedPage() {
                         audioUrl: p.audio_url,
                         user_id: p.user_id,
                         rawPrice: p.rawPrice, // Maps to "rawPrice" from RPC
-                        isUrgent: p.is_urgent // New Urgency Mapped
+                        isUrgent: p.is_urgent, // New Urgency Mapped
+                        myApplicationStatus: p.my_application_status // NEW: Mapped from RPC
                     };
                 });
                 setAds(formattedAds);
@@ -131,75 +138,94 @@ export default function FeedPage() {
         return () => { supabase.removeChannel(settingsSub); };
     }, [viewerLocation]); // Re-run when location is acquired or changes
 
-    const handleAccept = async (id: number) => {
-        if (!userId) {
-            alert("Veuillez vous connecter.");
-            router.push('/login');
-            return;
-        }
+    // 1. PROVIDER: Apply for Mission
+    const handleApply = async (id: string | number) => {
+        if (!userId) { router.push('/login'); return; }
 
-        const ad = ads.find(a => a.id === id);
-        if (!ad) return;
+        // Optimistic Update can be added here if needed, but we rely on RPC return usually or refresh
 
-        // Calculate Fee
-        let fee = commissionConfig.fixed_fallback;
-
-        // Try to parse price
-        const cleanPrice = String(ad.price).replace(/[^\d]/g, '');
-        if (cleanPrice && cleanPrice.length > 0) {
-            const priceValue = parseInt(cleanPrice);
-            if (!isNaN(priceValue)) {
-                fee = Math.floor(priceValue * (commissionConfig.rate / 100));
-            }
-        }
-        if (fee < 100) fee = 100;
-
-        // 1. Check Balance
-        if (providerBalance < (fee + 50)) {
-            if (confirm(`🚫 Solde insuffisant !\n\nIl vous faut ${(fee)} FCFA + marge pour accepter.\nVotre solde: ${providerBalance} FCFA\n\nVoulez-vous recharger ?`)) {
-                router.push('/wallet'); // Assuming /wallet exists
-            }
-            return;
-        }
-
-        // 2. Deduct Commission AND Update DB
-        // 2. ATOMIC TRANSACTION (Secure Server-Side Logic)
-        // 2. APPLY TRANSACTION (Candidate Mode)
-        if (confirm(`Postuler pour cette mission ?\n\nVotre profil sera envoyé au client pour validation.\nL'argent ne sera débité QUE si le client vous accepte.`)) {
-
-            // UI Feedback
-            setAds(currentAds => currentAds.filter(a => a.id !== id));
-
-            // Call the Apply Function
-            const { data: result, error: rpcError } = await supabase.rpc('apply_for_mission', {
-                p_post_id: id,
-                p_user_id: userId
+        try {
+            const { data: result, error } = await supabase.rpc('apply_for_mission', {
+                p_provider_id: userId,
+                p_post_id: id
             });
 
-            if (rpcError) {
-                alert("Erreur technique : " + rpcError.message);
+            if (error || (result && !result.success)) {
+                alert("Erreur: " + (error?.message || result?.message));
+            } else {
+                // Success: Refresh to show "En attente" badge
+                alert("✅ Candidature envoyée ! Attendez la réponse du client.");
                 window.location.reload();
-                return;
             }
-
-            // @ts-ignore
-            if (result && result.success === false) {
-                // @ts-ignore
-                alert("Echec : " + result.message);
-                window.location.reload();
-                return;
-            }
-
-            alert("✅ Candidature envoyée ! Vous recevrez une notif si le client valide.");
+        } catch (e) {
+            console.error(e);
+            alert("Erreur système.");
         }
     };
 
-    const handleComplete = (id: number) => {
-        // Logic for completion
+    // 2. AUTHOR: View Candidates
+    const handleViewCandidates = async (postId: string | number) => {
+        setSelectedPostId(String(postId));
+        setCandidateModalOpen(true);
+        setLoadingCandidates(true);
+
+        const { data, error } = await supabase.rpc('get_post_applications', { p_post_id: postId });
+        if (data) setCandidates(data);
+        if (error) console.error(error);
+
+        setLoadingCandidates(false);
+    };
+
+    // 3. AUTHOR: Approve Provider
+    const handleApproveProvider = async (providerId: string, fee: number) => {
+        if (!selectedPostId || !userId) return;
+
+        if (confirm(`Valider ce prestataire ?\n\nCela débitera ${fee} FCFA de SON solde et la mission commencera.`)) {
+            const { data: result, error } = await supabase.rpc('approve_provider', {
+                p_post_id: selectedPostId,
+                p_provider_id: providerId,
+                p_fee: fee
+            });
+
+            if (error || (result && !result.success)) {
+                alert("Erreur: " + (error?.message || result?.message));
+            } else {
+                alert("✅ Prestataire validé !");
+                setCandidateModalOpen(false);
+                // Refresh feed to show accepted status
+                window.location.reload();
+            }
+        }
+    };
+
+    // Removed legacy reject (implicit by approving another)
+    // The previous handleApprove is also removed as it's replaced by handleApproveProvider
+    const handleApprove = undefined;
+
+    // 3. Client Rejects (Author) - V2
+    const handleReject = async (id: number) => {
+        if (!userId) return;
+        if (confirm("Refuser ce candidat ?\nL'annonce sera remise en ligne pour d'autres prestataires.")) {
+            // Optimistic
+            setAds(current => current.map(ad => ad.id === id ? { ...ad, status: 'available', accepted_by: undefined } : ad));
+
+            const { data: result, error } = await supabase.rpc('reject_mission_v2', { p_post_id: id, p_client_id: userId });
+            if (error) alert("Erreur: " + error.message);
+        }
+    };
+
+    const handleComplete = (id: string | number) => {
+        const item = ads.find(a => a.id === id);
+        if (item) {
+            setRatingTarget({ id: item.id, author: item.author });
+            setIsRatingModalOpen(true);
+        }
     };
 
     const handleRatingSubmit = (rating: number, comment: string) => {
-        // Logic for rating
+        console.log("Rated", rating, comment);
+        setIsRatingModalOpen(false);
+        alert("Merci pour votre avis !");
     };
 
     // Sorting and Filtering Logic
@@ -275,7 +301,8 @@ export default function FeedPage() {
                             key={ad.id}
                             item={ad}
                             currentUserId={userId || undefined}
-                            onAccept={handleAccept}
+                            onApply={handleApply}
+                            onManageCandidates={handleViewCandidates}
                             onComplete={handleComplete}
                         />
                     ))
@@ -285,6 +312,72 @@ export default function FeedPage() {
                     </div>
                 )}
             </div>
+
+            {/* Candidate Management Modal */}
+            {candidateModalOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '90%', maxWidth: '400px', maxHeight: '80vh', overflowY: 'auto', padding: '1.5rem' }}>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                            Candidatures
+                            <button onClick={() => setCandidateModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '1.5rem' }}>×</button>
+                        </h3>
+
+                        {loadingCandidates ? (
+                            <div className="text-center py-4">Chargement...</div>
+                        ) : candidates.length === 0 ? (
+                            <div className="text-center py-4 text-gray-500">Aucune candidature pour le moment.</div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {candidates.map(c => (
+                                    <div key={c.id} style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {c.full_name?.charAt(0) || '?'}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontWeight: '600' }}>{c.full_name}</div>
+                                                <div style={{ fontSize: '0.8rem', color: 'gold' }}>★ {c.rating ? c.rating.toFixed(1) : 'NEW'} ({c.reviews_count} avis)</div>
+                                            </div>
+                                        </div>
+
+                                        {c.status === 'pending' && (
+                                            <button
+                                                onClick={() => {
+                                                    // Calculate fee logic reuse
+                                                    const ad = ads.find(a => String(a.id) === selectedPostId);
+                                                    let fee = 500;
+                                                    if (ad && ad.rawPrice) fee = Math.floor(ad.rawPrice * 0.10);
+                                                    else if (ad && ad.price) {
+                                                        const clean = String(ad.price).replace(/[^\d]/g, '');
+                                                        if (clean) fee = Math.floor(parseInt(clean) * 0.10);
+                                                    }
+                                                    if (fee < 100) fee = 100;
+
+                                                    handleApproveProvider(c.provider_id, fee);
+                                                }}
+                                                style={{
+                                                    width: '100%', padding: '0.5rem',
+                                                    backgroundColor: '#10B981', color: 'white',
+                                                    border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer'
+                                                }}
+                                            >
+                                                ✅ Accepter (Com: {500} FCFA~)
+                                            </button>
+                                        )}
+                                        {c.status === 'accepted' && (
+                                            <div style={{ color: '#10B981', fontWeight: 'bold', textAlign: 'center' }}>Validé</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             <RatingModal
                 isOpen={isRatingModalOpen}

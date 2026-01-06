@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Star, ShieldCheck, Award, MapPin, Trash2, Crown, Store, PlusCircle, X, QrCode } from 'lucide-react';
+import { ArrowLeft, Star, ShieldCheck, Award, MapPin, Trash2, Crown, Store, PlusCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { ImageUpload } from '@/components/ui/ImageUpload';
-// import QRCode from 'react-qr-code'; // Disable for debugging
+
+// NOTE: QR Code component removed to prevent 500 Error.
 
 export default function ProfilePage() {
     const router = useRouter();
@@ -18,8 +19,6 @@ export default function ProfilePage() {
     const [portfolio, setPortfolio] = useState<any[]>([]);
     const [businesses, setBusinesses] = useState<any[]>([]);
     const [isUploadOpen, setIsUploadOpen] = useState(false);
-    const [showQRCode, setShowQRCode] = useState(false);
-    const errorRef = React.useRef<any>(null);
 
     useEffect(() => {
         const fetchProfileData = async () => {
@@ -40,20 +39,17 @@ export default function ProfilePage() {
 
                 if (error) {
                     console.error("Profile Error:", error);
-                    errorRef.current = error;
                 }
                 setProfile(profile);
 
                 // 2. Fetch Portfolio & Businesses safely
-                // Even if these fail, we shouldn't crash the whole page
                 await Promise.allSettled([
                     fetchPortfolio(user.id),
                     fetchBusinesses(user.id)
                 ]);
 
             } catch (err) {
-                console.error("Global Profile Load Error:", err);
-                errorRef.current = err;
+                console.error("Critical Profile Error:", err);
             } finally {
                 setLoading(false);
             }
@@ -72,12 +68,11 @@ export default function ProfilePage() {
     };
 
     const fetchBusinesses = async (userId: string) => {
-        // Wrap in try/catch in case table doesn't exist yet
         try {
             const { data, error } = await supabase.from('businesses').select('*').eq('owner_id', userId);
             if (!error && data) setBusinesses(data);
         } catch (e) {
-            console.warn("Businesses table might not exist yet.");
+            console.warn("Businesses table optional.");
         }
     };
 
@@ -99,16 +94,12 @@ export default function ProfilePage() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Chargement...</div>;
+    if (loading) return <div className="p-8 text-center text-gray-500">Chargement du profil...</div>;
 
     if (!profile) {
         return (
             <div className="p-8 text-center text-red-500 flex flex-col items-center gap-4">
-                <p className="font-bold text-lg">Oups ! Impossible de charger le profil.</p>
-                <div className="bg-red-50 p-4 rounded text-left text-sm font-mono text-red-800 max-w-md break-all">
-                    {user ? `User ID: ${user.id}` : "No User in Session"} <br />
-                    Error: {JSON.stringify(errorRef.current || "Unknown Error", null, 2)}
-                </div>
+                <p className="font-bold text-lg">Impossible de charger le profil.</p>
                 <Button onClick={() => location.reload()}>Réessayer</Button>
             </div>
         );
@@ -132,27 +123,7 @@ export default function ProfilePage() {
                 <Link href="/feed" style={{ position: 'absolute', top: '1rem', left: '1rem', backgroundColor: 'white', padding: '0.5rem', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                     <ArrowLeft size={24} color="#0F172A" />
                 </Link>
-
-                {/* QR Code Toggle - DISABLED FOR DEBUG */}
-                {/* <button
-                    onClick={() => setShowQRCode(!showQRCode)}
-                    style={{ position: 'absolute', top: '1rem', right: '1rem', backgroundColor: 'white', padding: '0.5rem', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer' }}
-                >
-                    <QrCode size={24} color="#0F172A" />
-                </button> */}
             </div>
-
-            {/* QR Code Modal Overlay - DISABLED FOR DEBUG */}
-            {/* {showQRCode && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }} onClick={() => setShowQRCode(false)}>
-                    <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }} onClick={e => e.stopPropagation()}>
-                        <h2 style={{ fontWeight: 700, fontSize: '1.2rem' }}>Mon Code Xarr-Matt</h2>
-                        <QRCode value={`https://xarr-matt.app/user/${profile.id}`} size={200} />
-                        <p style={{ color: '#64748B', fontSize: '0.9rem' }}>Scannez pour voir mon profil</p>
-                        <Button fullWidth onClick={() => setShowQRCode(false)}>Fermer</Button>
-                    </div>
-                </div>
-            )} */}
 
             {/* Profile Card */}
             <div style={{ padding: '0 1rem', marginTop: '-50px', position: 'relative' }}>
@@ -319,7 +290,7 @@ export default function ProfilePage() {
                     </Button>
                 </Link>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#94A3B8' }}>
-                    v2.0 Mega-Profile
+                    Mega-Profile
                 </div>
             </div>
         </div>
