@@ -13,9 +13,7 @@ export default function NotificationsPage() {
 
     React.useEffect(() => {
         fetchNotifications();
-
-        // Mark all as read on mount (simplified logic)
-        // markAllAsRead(); 
+        markAllAsRead();
     }, []);
 
     const fetchNotifications = async () => {
@@ -39,6 +37,30 @@ export default function NotificationsPage() {
                 .from('notifications')
                 .update({ read: true })
                 .eq('user_id', user.id));
+        }
+    };
+
+    const handleNotificationClick = (notif: any) => {
+        const meta = notif.metadata || {};
+        const action = meta.action;
+        const postId = meta.post_id;
+        const providerId = meta.provider_id;
+
+        // V5 ROUTING LOGIC
+        if (action === 'view_applications' && postId) {
+            // Open Feed with param to auto-open candidates
+            router.push(`/feed?postId=${postId}&action=view_applications`);
+        }
+        else if (action === 'view_mission' && postId) {
+            // Open Feed, perhaps scrolls to it (basic implementation just goes to feed)
+            router.push(`/feed?postId=${postId}&action=view_mission`);
+        }
+        else if (action === 'view_profile' && providerId) {
+            router.push(`/profile/${providerId}`);
+        }
+        else {
+            // Default fallback
+            console.log("Unknown action", action);
         }
     };
 
@@ -79,7 +101,18 @@ export default function NotificationsPage() {
                     <div className="p-10 text-center text-gray-500">Aucune notification pour le moment.</div>
                 ) : (
                     notifications.map(notif => (
-                        <div key={notif.id} style={{ padding: '1rem', borderBottom: '1px solid #F1F5F9', display: 'flex', gap: '1rem', backgroundColor: notif.read ? 'white' : '#F8FAFC' }}>
+                        <div
+                            key={notif.id}
+                            onClick={() => handleNotificationClick(notif)}
+                            style={{
+                                padding: '1rem',
+                                borderBottom: '1px solid #F1F5F9',
+                                display: 'flex',
+                                gap: '1rem',
+                                backgroundColor: notif.read ? 'white' : '#F8FAFC',
+                                cursor: 'pointer'
+                            }}
+                        >
                             <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: getBgColor(notif.type), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 {getIcon(notif.type)}
                             </div>
