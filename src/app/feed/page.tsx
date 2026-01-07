@@ -85,9 +85,9 @@ export default function FeedPage() {
             console.log("Fetching posts nearby...", viewerLocation);
 
             const { data: posts, error } = await supabase.rpc('get_posts_nearby', {
-                user_lat: viewerLocation.lat,
-                user_lng: viewerLocation.lng,
-                radius_km: 7.0 // Strict 7km limit
+                p_user_lat: viewerLocation.lat,
+                p_user_lng: viewerLocation.lng,
+                radius_km: 7.0
             });
 
             if (error) {
@@ -99,22 +99,23 @@ export default function FeedPage() {
                 const formattedAds = posts.map((p: any) => {
                     return {
                         id: p.id,
-                        author: p.author_full_name || 'Anonyme',
-                        service: p.title,
+                        // MAPPING MAGIC: V4 Database (e.g. 'author') -> Legacy Code (e.g. 'author_full_name')
+                        author: p.author || p.author_full_name || 'Anonyme',
+                        service: p.service || p.title || 'Service',
                         description: p.description,
                         price: p.price ? p.price.toString() : 'Sur devis',
-                        distance: parseFloat(p.distance_km.toFixed(1)), // Calculated by DB
-                        timestamp: new Date(p.created_at).toLocaleDateString(),
-                        locationName: p.location || 'Dakar',
+                        distance: p.distance ? parseFloat(p.distance.toFixed(1)) : (p.distance_km ? parseFloat(p.distance_km.toFixed(1)) : 0),
+                        timestamp: p.timestamp || (p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Récemment'),
+                        locationName: p.location_name || p.location || 'Dakar',
                         lat: p.lat || 14.692,
                         lng: p.lng || -17.446,
                         status: p.status,
-                        phoneNumber: p.contact_phone,
-                        audioUrl: p.audio_url,
+                        phoneNumber: p.phone_number || p.contact_phone,
+                        audioUrl: p.audio_url, // V4 might be null
                         user_id: p.user_id,
-                        rawPrice: p.rawPrice, // Maps to "rawPrice" from RPC
-                        isUrgent: p.is_urgent, // New Urgency Mapped
-                        myApplicationStatus: p.my_application_status // NEW: Mapped from RPC
+                        rawPrice: p.raw_price || p.rawPrice,
+                        isUrgent: p.is_urgent,
+                        myApplicationStatus: p.my_application_status
                     };
                 });
                 setAds(formattedAds);
