@@ -62,8 +62,8 @@ export function FeedItem(props: FeedItemComponentProps) {
 
         setIsLoading(true);
         try {
-            // Call V5 RPC
-            const { data, error } = await supabase.rpc('apply_for_mission', { p_provider_id: currentUserId, p_post_id: item.id });
+            // Call V6 RPC (Secure - uses auth.uid() implicitly)
+            const { data, error } = await supabase.rpc('apply_for_mission', { p_post_id: item.id });
 
             if (error) {
                 alert("Erreur: " + error.message);
@@ -223,45 +223,55 @@ export function FeedItem(props: FeedItemComponentProps) {
                     )
                 )}
 
-                {/* 🔵 CAS 2: PRESTATAIRE (VISITEUR) */}
+                {/* 🔵 CAS 2: PRESTATAIRE (VISITEUR) - MATRICE V6 STRICTE */}
                 {!isAuthor && (
                     <>
-                        {/* 2.1 Mission Available / Not Applied */}
+                        {/* A. PENDING (En attente) */}
+                        {effectiveStatus === 'pending' && (
+                            <div style={{ padding: '0.75rem', background: '#FEF3C7', color: '#D97706', textAlign: 'center', borderRadius: '12px', fontWeight: 600, border: '1px solid #FDE68A' }}>
+                                🕒 En attente de réponse...
+                            </div>
+                        )}
+
+                        {/* B. ACCEPTED (Accepté) */}
+                        {(effectiveStatus === 'accepted' || item.accepted_by === currentUserId) && (
+                            <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '12px', padding: '1rem' }}>
+                                <div style={{ color: '#15803D', fontWeight: 'bold', textAlign: 'center', marginBottom: '0.5rem' }}>
+                                    🎉 Candidature Retenue !
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <Button variant="outline" fullWidth onClick={() => item.phoneNumber && window.open(`tel:${item.phoneNumber}`)}>
+                                        <Phone size={16} className="mr-2" /> Appeler ({item.phoneNumber})
+                                    </Button>
+                                    {item.lat && item.lng && (
+                                        <Button variant="outline" fullWidth onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`)}>
+                                            <Navigation size={16} className="mr-2" /> Y Aller
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* C. REJECTED (Refusé) */}
+                        {effectiveStatus === 'rejected' && (
+                            <div style={{ textAlign: 'center', color: '#EF4444', fontWeight: 'bold', padding: '0.75rem' }}>
+                                ❌ Candidature non retenue
+                            </div>
+                        )}
+
+                        {/* D. POSTULER (Seulement si Available ET Pas de statut) */}
                         {item.status === 'available' && !effectiveStatus && (
-                            <Button fullWidth onClick={handleApplyClick} disabled={isLoading} style={{ backgroundColor: 'var(--primary)' }}>
-                                {isLoading ? '...' : '🟢 Postuler'}
+                            <Button fullWidth onClick={handleApplyClick} disabled={isLoading} style={{ backgroundColor: 'black', color: 'white' }}>
+                                {isLoading ? 'Envoi...' : '🚀 Postuler'}
                             </Button>
                         )}
 
-                        {/* 2.2 Pending (Waiting) */}
-                        {item.status === 'available' && effectiveStatus === 'pending' && (
-                            <div style={{ padding: '0.75rem', background: '#EFF6FF', color: '#3B82F6', textAlign: 'center', borderRadius: '6px', fontWeight: 600 }}>
-                                ⏳ En attente de confirmation...
+                        {/* E. NON DISPONIBLE (Si pas available et pas accepté) */}
+                        {item.status !== 'available' && effectiveStatus !== 'accepted' && item.accepted_by !== currentUserId && (
+                            <div style={{ textAlign: 'center', color: '#94A3B8', padding: '0.5rem', fontStyle: 'italic' }}>
+                                Mission non disponible
                             </div>
                         )}
-
-                        {/* 2.3 Accepted (In Progress) */}
-                        {item.status === 'in_progress' && effectiveStatus === 'accepted' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <div style={{ padding: '0.5rem', background: '#DCFCE7', color: '#166534', textAlign: 'center', borderRadius: '6px', fontWeight: 600 }}>
-                                    ✅ Candidature Retenue !
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <Button variant="outline" style={{ flex: 1 }} onClick={() => item.phoneNumber && window.open(`tel:${item.phoneNumber}`)}>
-                                        <Phone size={16} className="mr-2" /> Appeler
-                                    </Button>
-                                    <Button variant="outline" style={{ flex: 1 }} onClick={() => item.phoneNumber && window.open(`https://wa.me/${item.phoneNumber.replace(/\s+/g, '')}`)}>
-                                        <MessageCircle size={16} className="mr-2" /> WhatsApp
-                                    </Button>
-                                    <Button variant="outline" style={{ flex: 1 }} onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`)}>
-                                        <Navigation size={16} className="mr-2" /> Y Aller
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 2.4 Rejected or Completed (Should be filtered out largely, but safe fallback) */}
-                        {/* (No logic needed, visual cues handle it or it's hidden) */}
                     </>
                 )}
             </div>

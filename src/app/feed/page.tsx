@@ -188,23 +188,19 @@ function FeedContent() {
     }, [ads, searchTerm, category]);
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '80px', position: 'relative', paddingTop: '80px' }}>
+        <div className="min-h-screen bg-slate-50 pb-20 pt-20">
             <TopBar />
 
-            {/* Header & Filter */}
-            <div style={{ padding: '0 1rem 1rem 1rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                {/* Search Bar */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <div style={{
-                        flex: 1, display: 'flex', alignItems: 'center',
-                        backgroundColor: 'var(--input)', borderRadius: 'var(--radius)', padding: '0 0.5rem'
-                    }}>
-                        <Search size={18} color="var(--muted)" />
+            {/* Sticky Header & Filter */}
+            <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm transition-all duration-300">
+                <div className="px-4 py-3">
+                    {/* Search Bar */}
+                    <div className="relative flex items-center bg-slate-100 rounded-full px-4 py-2.5 transition-all focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 focus-within:shadow-md">
+                        <Search size={18} className="text-slate-400 mr-2" />
                         <input
                             type="text"
-                            placeholder="Rechercher..."
-                            className="input"
-                            style={{ border: 'none', background: 'transparent' }}
+                            placeholder="Rechercher (ex: Plomberie)..."
+                            className="bg-transparent border-none outline-none w-full text-sm text-slate-700 placeholder:text-slate-400"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -212,71 +208,149 @@ function FeedContent() {
                 </div>
 
                 {/* Categories Pills */}
-                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                <div className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-hide">
                     {['all', 'mecanique', 'bricolage', 'cuisine', 'transport'].map(cat => (
                         <button
                             key={cat}
                             onClick={() => setCategory(cat)}
-                            style={{
-                                padding: '0.25rem 0.75rem',
-                                borderRadius: '999px',
-                                border: category === cat ? 'none' : '1px solid var(--border)',
-                                backgroundColor: category === cat ? 'var(--primary)' : 'white',
-                                color: category === cat ? 'white' : 'var(--foreground)',
-                                textTransform: 'capitalize',
-                                whiteSpace: 'nowrap'
-                            }}
+                            className={`
+                                flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all duration-200 border
+                                ${category === cat
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 transform scale-105'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}
+                            `}
                         >
-                            {cat === 'all' ? 'Tout' : cat}
+                            {cat === 'all' ? 'Tout' : cat.charAt(0).toUpperCase() + cat.slice(1)}
                         </button>
                     ))}
                 </div>
             </div>
 
             {/* Feed List */}
-            <div className="container" style={{ padding: '1rem' }}>
+            <div className="max-w-md mx-auto px-4 pt-4">
+                {/* Sort Indicator */}
+                <div className="flex items-center gap-1 mb-4">
+                    <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                        📍 Trié par proximité
+                    </span>
+                    <div className="h-[1px] flex-1 bg-gradient-to-r from-slate-200 to-transparent"></div>
+                </div>
+
                 {loading ? (
-                    <div className="text-center py-10 text-slate-400">Chargement...</div>
+                    <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-slate-400 text-sm animate-pulse">Recherche des missions...</p>
+                    </div>
                 ) : filteredAds.length > 0 ? (
-                    filteredAds.map(ad => (
-                        <FeedItem
-                            key={ad.id}
-                            item={ad}
-                            currentUserId={userId || undefined}
-                            onApply={handleRefresh}
-                            onManageCandidates={handleViewCandidates}
-                            onComplete={handleComplete}
-                        />
-                    ))
+                    <div className="space-y-4">
+                        {filteredAds.map(ad => (
+                            <FeedItem
+                                key={ad.id}
+                                item={ad}
+                                currentUserId={userId || undefined}
+                                onApply={handleRefresh}
+                                onManageCandidates={handleViewCandidates}
+                                onComplete={handleComplete}
+                            />
+                        ))}
+                    </div>
                 ) : (
-                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted)' }}>
-                        Aucune annonce.
+                    <div className="text-center py-20 px-4">
+                        <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Search size={24} className="text-slate-300" />
+                        </div>
+                        <h3 className="text-slate-900 font-semibold mb-1">Aucune annonce trouvée</h3>
+                        <p className="text-slate-500 text-sm">Essayez de modifier vos filtres ou revenez plus tard.</p>
                     </div>
                 )}
             </div>
 
-            {/* Candidate Modal */}
+            {/* Candidate Modal (Premium Styled) */}
             {candidateModalOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '90%', maxWidth: '400px', maxHeight: '80vh', overflowY: 'auto', padding: '1.5rem' }}>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>Candidatures <button onClick={() => setCandidateModalOpen(false)} style={{ border: 'none', background: 'none' }}>×</button></h3>
-                        {loadingCandidates ? <div>...</div> : candidates.length === 0 ? <div className="text-gray-500">Aucun candidat.</div> : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {candidates.map(c => (
-                                    <div key={c.id} style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
-                                        <div style={{ fontWeight: 'bold' }}>{c.full_name}</div>
-                                        <div style={{ fontSize: '0.8rem' }}>{c.profession}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#3B82F6' }}>📞 {c.phone}</div>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-sm max-h-[80vh] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <h3 className="text-lg font-bold text-slate-800">Candidatures</h3>
+                            <button
+                                onClick={() => setCandidateModalOpen(false)}
+                                className="w-8 h-8 flex items-center justify-center bg-slate-200 rounded-full text-slate-500 hover:bg-slate-300 transition"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-4 overflow-y-auto space-y-3">
+                            {loadingCandidates ? (
+                                <div className="text-center py-8">
+                                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                                    <p className="text-xs text-slate-400">Chargement...</p>
+                                </div>
+                            ) : candidates.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400 italic">Aucun candidat pour le moment.</div>
+                            ) : (
+                                candidates.map(c => (
+                                    <div key={c.id} className="p-3 border border-slate-100 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                        <div
+                                            className="flex items-center gap-3 cursor-pointer mb-3"
+                                            onClick={() => router.push(`/profile/${c.provider_id}`)}
+                                        >
+                                            <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200">
+                                                {c.avatar_url ? (
+                                                    <img src={c.avatar_url} alt={c.full_name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center font-bold text-slate-400 text-sm">
+                                                        {c.full_name?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold text-slate-800 truncate">{c.full_name}</div>
+                                                <div className="text-xs text-slate-500 truncate">{c.profession || 'Prestataire'}</div>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    {/* Client-visible Phone Check */}
+                                                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                                        📞 {c.phone || c.contact_phone || 'Masqué'}
+                                                    </span>
+                                                    <span className="text-xs text-yellow-500 font-bold">★ {c.rating ? c.rating.toFixed(1) : 'NEW'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
                                         {c.status === 'pending' && (
-                                            <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-                                                <button onClick={() => window.open(`/profile/${c.provider_id}`, '_blank')} style={{ flex: 1, padding: '0.3rem', border: '1px solid #ddd' }}>Profil</button>
-                                                <button onClick={() => handleApproveProvider(c.provider_id, 500)} style={{ flex: 1, padding: '0.3rem', background: '#10B981', color: 'white' }}>Valider</button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => router.push(`/profile/${c.provider_id}`)}
+                                                    className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                                                >
+                                                    Profil
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const ad = ads.find(a => String(a.id) === selectedPostId);
+                                                        let fee = 500;
+                                                        if (ad && ad.rawPrice) fee = Math.floor(ad.rawPrice * 0.10);
+                                                        if (fee < 100) fee = 100;
+
+                                                        handleApproveProvider(c.provider_id, fee);
+                                                    }}
+                                                    className="flex-1 py-2 text-xs font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition shadow-sm shadow-green-200"
+                                                >
+                                                    Valider
+                                                </button>
+                                            </div>
+                                        )}
+                                        {c.status === 'accepted' && (
+                                            <div className="bg-green-50 text-green-700 text-xs font-bold py-2 rounded-lg text-center border border-green-100">
+                                                ✅ Prestataire Validé
                                             </div>
                                         )}
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
@@ -295,7 +369,14 @@ function FeedContent() {
 
 export default function FeedPage() {
     return (
-        <Suspense fallback={<div className="p-10 text-center">Chargement de l'application...</div>}>
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 font-medium animate-pulse">XARR-MATT</p>
+                </div>
+            </div>
+        }>
             <FeedContent />
         </Suspense>
     );
