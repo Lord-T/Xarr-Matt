@@ -15,6 +15,7 @@ export default function ProfileEditPage() {
     // Form State
     const [formData, setFormData] = useState({
         full_name: '',
+        profession: '', // New field
         phone: '',
         location: '',
         bio: '',
@@ -49,6 +50,7 @@ export default function ProfileEditPage() {
             if (profile) {
                 setFormData({
                     full_name: profile.full_name || '',
+                    profession: profile.profession || '', // Load it
                     phone: profile.phone || '',
                     location: '',
                     bio: profile.bio || '',
@@ -166,6 +168,7 @@ export default function ProfileEditPage() {
             .from('profiles')
             .update({
                 full_name: formData.full_name,
+                profession: formData.profession, // Add profession
                 bio: formData.bio,
                 specialties: formData.specialties,
                 years_experience: formData.years_experience,
@@ -211,6 +214,73 @@ export default function ProfileEditPage() {
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nom Complet</label>
                         <input type="text" className="input w-full" value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} />
+                    </div>
+
+                    {/* Profession Input (Smart Suggestion) */}
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Métier Principal</label>
+                        <input
+                            list="professions-list"
+                            type="text"
+                            className="input w-full font-semibold text-blue-900 bg-blue-50/50 border-blue-200 focus:border-blue-500"
+                            placeholder="Ex: Maçon, Informaticien..."
+                            value={formData.profession}
+                            onChange={e => setFormData({ ...formData, profession: e.target.value })}
+                        />
+                        <datalist id="professions-list">
+                            {/* BTP & Construction */}
+                            <option value="Maçon" />
+                            <option value="Menuisier" />
+                            <option value="Plombier" />
+                            <option value="Électricien" />
+                            <option value="Peintre" />
+                            <option value="Carreleur" />
+                            <option value="Soudeur" />
+                            <option value="Vitrier" />
+                            <option value="Charpentier" />
+                            <option value="Ferronnier" />
+
+                            {/* Transport & Logistique */}
+                            <option value="Chauffeur" />
+                            <option value="Taximan" />
+                            <option value="Livreur" />
+                            <option value="Moto-Taxi (Tiak-Tiak)" />
+                            <option value="Charretier" />
+                            <option value="Déménageur" />
+
+                            {/* Maison & Services */}
+                            <option value="Femme de ménage" />
+                            <option value="Cuisinier" />
+                            <option value="Traiteur" />
+                            <option value="Jardinier" />
+                            <option value="Gardien" />
+                            <option value="Blanchisseur" />
+                            <option value="Nounou" />
+
+                            {/* Technique & Réparation */}
+                            <option value="Mécanicien" />
+                            <option value="Frigoriste" />
+                            <option value="Réparateur Téléphone" />
+                            <option value="Réparateur TV/Électroménager" />
+                            <option value="Informaticien" />
+
+                            {/* Beauté & Mode */}
+                            <option value="Couturier / Tailleur" />
+                            <option value="Coiffeur" />
+                            <option value="Tresseuse" />
+                            <option value="Maquilleuse" />
+
+                            {/* Autres */}
+                            <option value="Commerçant" />
+                            <option value="Boutiquier" />
+                            <option value="Enseignant / Répétiteur" />
+                            <option value="Photographe" />
+                            <option value="Infirmier" />
+                            <option value="Agent Immobilier" />
+                            <option value="Bricoleur" />
+                            <option value="Comptable" />
+                            <option value="Sécurité" />
+                        </datalist>
                     </div>
                     <div>
                         <label className="block text-sm font-semibold mb-1">Biographie</label>

@@ -37,6 +37,35 @@ interface FeedItemComponentProps {
     onComplete: (id: string | number) => void;
 }
 
+// Helper Component for Advertiser to see Provider
+function ActiveProviderDisplay({ providerId }: { providerId: string }) {
+    const [provider, setProvider] = React.useState<any>(null);
+
+    React.useEffect(() => {
+        supabase.from('profiles').select('full_name, phone, profession, avatar_url').eq('id', providerId).single()
+            .then(({ data }) => setProvider(data));
+    }, [providerId]);
+
+    if (!provider) return <div className="text-xs text-slate-400">Chargement prestataire...</div>;
+
+    return (
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white border border-blue-200 overflow-hidden">
+                    <img src={provider.avatar_url || `https://ui-avatars.com/api/?name=${provider.full_name}`} className="w-full h-full object-cover" />
+                </div>
+                <div>
+                    <div className="font-bold text-slate-800 text-sm">{provider.full_name}</div>
+                    <div className="text-xs text-slate-500">{provider.profession || 'Prestataire'}</div>
+                </div>
+            </div>
+            <a href={`tel:${provider.phone}`} className="bg-white p-2 rounded-full shadow-sm text-blue-600 border border-blue-100 hover:bg-blue-50">
+                <Phone size={18} />
+            </a>
+        </div>
+    );
+}
+
 export function FeedItem(props: FeedItemComponentProps) {
     const { item, currentUserId, onApply, onComplete } = props;
     const isAuthor = currentUserId === item.user_id;
@@ -215,9 +244,15 @@ export function FeedItem(props: FeedItemComponentProps) {
                             {showCandidates ? '🔼 Masquer' : '👥 Voir les candidatures'}
                         </Button>
                     ) : item.status === 'in_progress' ? (
-                        <Button fullWidth onClick={() => onComplete(item.id)} style={{ backgroundColor: '#10B981', color: 'white' }}>
-                            🏁 Terminer la mission
-                        </Button>
+                        <div className="flex flex-col gap-3">
+                            {/* Provider Info Card */}
+                            {item.accepted_by && (
+                                <ActiveProviderDisplay providerId={item.accepted_by} />
+                            )}
+                            <Button fullWidth onClick={() => onComplete(item.id)} style={{ backgroundColor: '#10B981', color: 'white' }}>
+                                🏁 Terminer la mission
+                            </Button>
+                        </div>
                     ) : (
                         <div style={{ textAlign: 'center', color: 'gray', padding: '0.5rem' }}>Mission terminée</div>
                     )
